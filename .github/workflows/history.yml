@@ -35,12 +35,20 @@ jobs:
           HIST_START: ${{ inputs.start }}
           HIST_BUDGET_MIN: "290"
         run: python -u scripts/이력받기.py
+      - name: 집계(이력을 다 받았을 때만)
+        env:
+          HIST_SIDO: ${{ inputs.sido }}
+          HIST_START: ${{ inputs.start }}
+          KAKAO_REST_KEY: ${{ secrets.KAKAO_REST_KEY }}
+        run: |
+          pip install -q pyproj shapely
+          if python -u scripts/이력받기.py --check 2>/dev/null | grep -q "남은 묶음 0개"; then python -u scripts/집계.py; else echo "아직 받을 이력이 남아 집계는 건너뜀"; fi
       - name: 결과 저장
         if: always()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
-          git add history
+          git add history analysis data/좌표_캐시.json
           if git diff --cached --quiet; then echo "새 이력 없음"; exit 0; fi
           git commit -m "분석용 이력: ${{ inputs.sido }} (폐업 ${{ inputs.start }} 이후)"
           for i in 1 2 3; do git pull --rebase -q origin main && git push && break; sleep 10; done

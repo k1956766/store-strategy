@@ -56,6 +56,12 @@ def fetch_all(ds, cond, pool):
     return total, list(uniq.values())
 
 def main():
+    if "--check" in sys.argv:          # 받기 없이 남은 묶음만 센다
+        regions = json.loads((ROOT / "scripts" / "지자체_수도권.json").read_text(encoding="utf-8"))
+        left = sum(1 for c, n in regions.items() if n.startswith(SIDO) for l in DATASETS for k in ("폐업", "영업")
+                   if not (ROOT / "history" / c / f"{l}_{k}.csv.gz").exists())
+        print(f"남은 묶음 {left}개")
+        return
     if not KEY:
         raise SystemExit("DATA_GO_KR_KEY가 없습니다.")
     regions = json.loads((ROOT / "scripts" / "지자체_수도권.json").read_text(encoding="utf-8"))
