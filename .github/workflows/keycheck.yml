@@ -1,0 +1,34 @@
+name: 키 확인
+on:
+  push:
+    paths: ['.github/workflows/keycheck.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 서울·R-ONE·NEIS 키 호출
+        env:
+          S: ${{ secrets.SEOUL_DATA_KEY }}
+          R: ${{ secrets.REB_KEY }}
+          N: ${{ secrets.NEIS_KEY }}
+        run: |
+          mkdir -p data
+          {
+            echo "checked $(TZ=Asia/Seoul date '+%F %T')"
+            echo "SEOUL_DATA_KEY set=$([ -n "$S" ] && echo y || echo n)"
+            curl -s --max-time 60 "http://openapi.seoul.go.kr:8088/$S/json/VwsmAdstrdStorW/1/1/" | python3 -c "import sys,json;t=sys.stdin.read();
+          try:
+            d=json.loads(t);k=list(d)[0];v=d[k];print('SEOUL',k,v.get('list_total_count',''),v.get('RESULT',{}) if isinstance(v,dict) else '')
+          except Exception: print('SEOUL raw',t[:200])"
+            echo "REB_KEY set=$([ -n "$R" ] && echo y || echo n)"
+            curl -s --max-time 60 "https://www.reb.or.kr/r-one/openapi/SttsApiTbl.do?KEY=$R&Type=json&pIndex=1&pSize=1" | head -c 200; echo
+            echo "NEIS_KEY set=$([ -n "$N" ] && echo y || echo n)"
+            curl -s --max-time 60 "https://open.neis.go.kr/hub/acaInsTiInfo?KEY=$N&Type=json&pIndex=1&pSize=1&ATPT_OFCDC_SC_CODE=B10" | head -c 200; echo
+          } > data/키확인.txt
+          cat data/키확인.txt
+          git config user.name "github-actions[bot]"; git config user.email "41898599+github-actions[bot]@users.noreply.github.com"
+          git add data/키확인.txt && git commit -m "키 확인 결과" && (git push || (git pull --rebase && git push))
