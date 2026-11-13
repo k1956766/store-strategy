@@ -27,9 +27,12 @@
   // ---------- 지도 ----------
   const map = L.map('map', { zoomControl: false, minZoom: 8, maxZoom: 18 }).setView([37.5565, 126.99], 11);
   L.control.zoom({ position: 'topright' }).addTo(map);
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  // 배경지도: 국토교통부 브이월드(키는 배포할 때 pages.yml이 넣음. 비어 있으면 OSM으로 대체)
+  const VW_KEY = '';
+  const hasVW = /^[0-9A-F-]{30,}$/i.test(VW_KEY);
+  L.tileLayer(hasVW ? `https://api.vworld.kr/req/wmts/1.0.0/${VW_KEY}/Base/{z}/{y}/{x}.png` : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19, className: 'basemap',
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> 기여자',
+    attribution: hasVW ? '&copy; <a href="https://www.vworld.kr">국토교통부 브이월드</a>' : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> 기여자',
   }).addTo(map);
   fetch('data/sigungu_base.json').then((r) => r.json()).then((g) => {
     L.geoJSON(g, { interactive: false, style: () => ({ color: '#5A6676', weight: 1, opacity: 0.45, fillOpacity: 0 }) }).addTo(map);
