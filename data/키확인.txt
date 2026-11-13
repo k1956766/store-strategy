@@ -1,0 +1,7 @@
+checked 2026-11-13 14:53:11
+SEOUL_DATA_KEY set=y
+SEOUL raw 
+REB_KEY set=y
+{"SttsApiTbl":[{"head":[{"list_total_count":769},{"RESULT":{"CODE":"INFO-000","MESSAGE":"정상 처리되었습니다."}}]},{"row":[{"STATBL_ID":"A_2024_00900","STATBL_NM":"(연) 지역별 지가지�
+NEIS_KEY set=y
+{"acaInsTiInfo":[{"head":[{"list_total_count":25497},{"RESULT":{"CODE":"INFO-000","MESSAGE":"정상 처리되었습니다."}}]},{"row":[{"ATPT_OFCDC_SC_CODE":"B10","ATPT_OFCDC_SC_NM":"서울특별시�
