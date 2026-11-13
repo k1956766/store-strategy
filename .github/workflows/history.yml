@@ -1,0 +1,46 @@
+name: 분석용 이력 받기
+
+# 상권 동향 분석 1단계: 시도 단위로 개업·폐업 이력을 받아 history/에 저장한다.
+# 손으로 돌린다(Actions → 분석용 이력 받기 → Run workflow). 시간 안에 못 끝내면 다시 돌리면 이어 받는다.
+on:
+  workflow_dispatch:
+    inputs:
+      sido:
+        description: "시도(지자체_수도권.json 이름 앞부분: 서울, 경기, 인천)"
+        default: "서울"
+      start:
+        description: "폐업 기준일(YYYY-MM-DD)"
+        default: "2025-01-01"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-update        # 매일 갱신과 동시에 커밋하지 않도록 같은 묶음으로
+  cancel-in-progress: false
+
+jobs:
+  history:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 이력 받기
+        env:
+          DATA_GO_KR_KEY: ${{ secrets.DATA_GO_KR_KEY }}
+          HIST_SIDO: ${{ inputs.sido }}
+          HIST_START: ${{ inputs.start }}
+          HIST_BUDGET_MIN: "290"
+        run: python -u scripts/이력받기.py
+      - name: 결과 저장
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
+          git add history
+          if git diff --cached --quiet; then echo "새 이력 없음"; exit 0; fi
+          git commit -m "분석용 이력: ${{ inputs.sido }} (폐업 ${{ inputs.start }} 이후)"
+          for i in 1 2 3; do git pull --rebase -q origin main && git push && break; sleep 10; done
