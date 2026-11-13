@@ -1,0 +1,110 @@
+:root{
+  --ink:#1F2B3D;
+  --ink-2:#5A6676;
+  --paper:#F2F4F3;
+  --rule:#D5DBD8;
+  --focus:#0B63CE;
+  /* 업종 묶음 색(고정 순서) */
+  --g1:#2a78d6; --g2:#eb6834; --g3:#1baf7a; --g4:#eda100;
+  --g5:#e87ba4; --g6:#008300; --g7:#6250d6; --g0:#8a949e;
+  --font:"Pretendard Variable",Pretendard,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;height:100%}
+body{font-family:var(--font);color:var(--ink);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+#map{position:fixed;inset:0;background:#E9ECEA}
+.leaflet-container{font-family:var(--font)}
+/* 배경지도는 흑백으로 눌러 가게 점이 먼저 보이게 */
+.basemap{filter:grayscale(.85) contrast(1.05) brightness(1.03)}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+
+.panel{
+  position:fixed;top:16px;left:16px;bottom:16px;width:340px;z-index:1000;
+  background:var(--paper);border-radius:14px;
+  box-shadow:0 1px 2px rgba(31,43,61,.12),0 8px 24px rgba(31,43,61,.10);
+  padding:22px 22px 18px;overflow-y:auto;display:flex;flex-direction:column;gap:20px;
+}
+.brand h1{font-size:26px;line-height:1.15;font-weight:800;letter-spacing:-.02em;margin:0 0 6px}
+.brand p{margin:0;color:var(--ink-2);font-size:14px}
+.brand .asof{margin:4px 0 6px;font-size:12px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.beta-tag{font-size:12px;font-weight:700;color:#fff;background:#1F2B3D;border-radius:6px;padding:2px 7px;vertical-align:middle;margin-left:4px}
+
+.field{display:grid;gap:6px}
+.fl{font-weight:700}
+.field select{font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--rule);border-radius:8px;background:#fff;color:var(--ink);width:100%}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--ink);border-radius:8px;overflow:hidden}
+.seg button{font:inherit;font-size:14px;font-weight:700;padding:6px 0;background:#fff;color:var(--ink);border:0;cursor:pointer}
+.seg button+button{border-left:1px solid var(--ink)}
+.seg button[aria-checked="true"]{background:var(--ink);color:#fff}
+
+/* 판독창: 이 페이지에서 유일하게 큰 숫자 */
+.readout{display:flex;flex-direction:column;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);padding:14px 0}
+.ro-k{font-size:13px;color:var(--ink-2);font-weight:600}
+.ro-v{font-size:44px;line-height:1;font-weight:800;letter-spacing:-.03em;font-variant-numeric:tabular-nums;margin:4px 0}
+.ro-v small{font-size:18px;font-weight:700;margin-left:2px;letter-spacing:0}
+.ro-s{font-size:13px;color:var(--ink-2)}
+
+/* 가게 목록: 정차역 목록처럼 */
+.shops h2{font-size:15px;font-weight:800;margin:0 0 8px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.shops h2 span{font-size:12px;font-weight:600;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.shops ol{list-style:none;margin:0;padding:0}
+.shop{display:grid;grid-template-columns:10px 1fr auto;gap:2px 10px;padding:9px 4px;border-top:1px solid var(--rule);cursor:pointer}
+.shop:hover,.shop:focus-visible{background:#E6EBE8}
+.shop i{width:10px;height:10px;border-radius:50%;margin-top:6px;box-shadow:0 0 0 1px rgba(31,43,61,.35)}
+.shop .nm{font-weight:700;font-size:14px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.shop .dt{font-weight:800;font-size:13px;font-variant-numeric:tabular-nums;text-align:right}
+.shop .sub{grid-column:2/4;font-size:12px;color:var(--ink-2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.shops .none{font-size:13px;color:var(--ink-2);margin:0;padding-top:4px}
+.more{font:inherit;font-size:13px;font-weight:600;margin-top:8px;border:1px solid var(--rule);background:#fff;border-radius:8px;padding:6px 12px;cursor:pointer}
+.basis{margin-top:auto;font-size:12px;color:var(--ink-2)}
+.basis p{margin:0 0 4px}
+
+/* 지도 오른쪽 아래 범례(업종 켜고 끄기) */
+.legend{position:fixed;z-index:900;right:12px;bottom:26px;
+  background:rgba(255,255,255,.95);border-radius:10px;padding:10px 12px 10px;width:310px;
+  box-shadow:0 1px 2px rgba(31,43,61,.12),0 4px 14px rgba(31,43,61,.10)}
+.lg-title{font-size:12px;font-weight:700;margin-bottom:6px}
+.lg-title span{font-weight:500;color:var(--ink-2);margin-left:4px}
+.lg-items{display:grid;grid-template-columns:1fr 1fr;gap:2px 14px}
+.lg-items button{display:flex;align-items:center;gap:6px;font:inherit;font-size:12px;color:var(--ink);background:none;border:0;border-radius:6px;padding:3px 4px;cursor:pointer;text-align:left;white-space:nowrap}
+.lg-items button:hover{background:#F0F2F1}
+.lg-items i{width:10px;height:10px;border-radius:50%;flex:none;box-shadow:0 0 0 1px rgba(31,43,61,.55)}
+.lg-items b{font-weight:600;color:var(--ink-2);margin-left:auto;font-variant-numeric:tabular-nums}
+.lg-items button[aria-pressed="false"]{color:#A3ACB6}
+.lg-items button[aria-pressed="false"] i{background:transparent!important;box-shadow:inset 0 0 0 1.5px #A3ACB6}
+.lg-items button[aria-pressed="false"] b{color:#A3ACB6}
+
+/* 지도 표시 */
+.shop-dot{width:12px;height:12px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px rgba(31,43,61,.45)}
+.cl{display:grid;place-items:center;border-radius:50%;background:var(--ink);color:#fff;font-weight:800;font-variant-numeric:tabular-nums;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35)}
+.leaflet-popup-content-wrapper{border-radius:10px}
+.leaflet-popup-content{margin:12px 14px;min-width:210px;font-size:13px;line-height:1.45}
+.pp-name{font-weight:800;font-size:16px;letter-spacing:-.01em;margin-bottom:4px}
+.pp-tag{display:flex;align-items:center;gap:6px;font-weight:600;margin-bottom:8px}
+.pp-tag i{width:10px;height:10px;border-radius:50%;box-shadow:0 0 0 1px rgba(31,43,61,.45)}
+.pp-tag span{font-weight:500;color:var(--ink-2)}
+.pp dl{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;margin:0}
+.pp dt{color:var(--ink-2)}
+.pp dd{margin:0}
+.pp-links{margin-top:10px;display:flex;gap:6px}
+.pp-links a{font-size:12px;font-weight:700;color:var(--ink);text-decoration:none;border:1px solid var(--rule);border-radius:999px;padding:4px 10px}
+.pp-links a:hover{background:#F0F2F1}
+
+.loading{position:fixed;z-index:1100;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:14px}
+
+@media (max-width:720px){
+  .panel{top:auto;left:0;right:0;bottom:0;width:auto;height:52vh;border-radius:16px 16px 0 0;padding:16px 16px 12px;gap:14px}
+  .brand p{display:none}
+  .brand p.asof{display:block;font-size:11px;margin-top:2px}
+  .brand h1{font-size:20px;margin:0}
+  .ro-v{font-size:34px}
+  .readout{padding:10px 0}
+  .legend{left:8px;right:8px;width:auto;bottom:calc(52vh + 8px);padding:7px 10px 6px}
+  .lg-title{display:none}
+  .lg-items{grid-template-columns:repeat(4,1fr);gap:0 4px}
+  .lg-items button{font-size:11px;padding:2px}
+  .lg-items b{display:none}
+  .leaflet-top.leaflet-right{top:0}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
