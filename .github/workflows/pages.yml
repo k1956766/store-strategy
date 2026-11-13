@@ -1,11 +1,10 @@
 name: 홈페이지 배포
 
-# 홈페이지 파일만 모아 브이월드 키를 넣고 GitHub Pages로 배포한다.
-# 저장소에는 키를 두지 않는다(비밀값 VWORLD_KEY). 키가 없으면 OSM 배경지도로 동작.
+# 홈페이지 파일과 지도 자료만 골라 GitHub Pages에 올린다. 브이월드 키는 이때 넣는다(저장소 코드에는 없음).
 on:
   push:
     branches: [main]
-  workflow_run:
+  workflow_run:                # 매일 갱신이 자료를 커밋한 뒤에도 배포
     workflows: ["매일 갱신"]
     types: [completed]
   workflow_dispatch:
@@ -22,14 +21,16 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.dep.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
 
-      - name: 홈페이지 파일 모으기
+      - name: 배포할 파일 모으기, 브이월드 키 넣기
         env:
           K: ${{ secrets.VWORLD_KEY }}
         run: |
@@ -39,12 +40,11 @@ jobs:
           cp -r data/map data/sigungu_base.json _site/data/
           K=$(printf '%s' "$K" | tr -d '[:space:]')
           sed -i -E "s/const VW_KEY = '[^']*'/const VW_KEY = '${K}'/" _site/app.js
-          if [ -n "$K" ]; then echo "브이월드 키 넣음"; else echo "키 없음: OSM으로 동작"; fi
-          touch _site/.nojekyll
+          du -sh _site
 
+      - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
-
-      - id: deployment
+      - id: dep
         uses: actions/deploy-pages@v4
