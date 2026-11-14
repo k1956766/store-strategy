@@ -1,0 +1,43 @@
+name: 업종 보강
+
+# 집계 결과에서 '기타'로 남은 음식점을 카카오·네이버 지도 검색으로 분류한다. 손으로 돌린다.
+on:
+  workflow_dispatch:
+    inputs:
+      sido:
+        description: "시도(서울, 경기, 인천)"
+        default: "서울"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: enrich
+  cancel-in-progress: false
+
+jobs:
+  enrich:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 지도 검색으로 업종 채우기
+        env:
+          HIST_SIDO: ${{ inputs.sido }}
+          KAKAO_REST_KEY: ${{ secrets.KAKAO_REST_KEY }}
+          NAVER_API_KEY_ID: ${{ secrets.NAVER_API_KEY_ID }}
+          NAVER_API_KEY: ${{ secrets.NAVER_API_KEY }}
+          ENRICH_BUDGET_MIN: "300"
+        run: python -u scripts/업종보강.py
+      - name: 결과 저장
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
+          git add data/업종보강_캐시.json
+          if git diff --cached --quiet; then echo "변경 없음"; exit 0; fi
+          git commit -m "업종 보강: ${{ inputs.sido }}"
+          for i in 1 2 3; do git pull --rebase -q origin main && git push && break; sleep 10; done

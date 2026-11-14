@@ -186,7 +186,10 @@ def main():
 
     rows = load_rows()
     print(f"{SIDO}: 가게 {len(rows):,}곳 읽음")
-    qcache = json.loads((ROOT / "data" / "업종조회_캐시.json").read_text(encoding="utf-8")) if (ROOT / "data" / "업종조회_캐시.json").exists() else {}
+    qcache = {}
+    for cf in ("업종조회_캐시.json", "업종보강_캐시.json"):     # 매일 갱신 조회 + 분석용 보강 조회
+        if (ROOT / "data" / cf).exists():
+            qcache.update({k: v for k, v in json.loads((ROOT / "data" / cf).read_text(encoding="utf-8")).items() if v.get("업종")})
     for r in rows:
         if r["자료"] not in FOOD:
             r["업종"], r["업종근거"] = extra_category(r), "인허가 업종"
