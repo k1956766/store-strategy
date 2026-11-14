@@ -13,6 +13,15 @@
     회전율: { name: '교체(회전율, %/년)', d: 0 }, 폐업률: { name: '폐업률(%/년)', d: 1 },
     개업률: { name: '개업률(%/년)', d: 1 }, 순증률: { name: '가게 수 순증률(%)', d: 1, div: true },
   };
+  const FAMILY = [
+    ['음식·음료', ['한식', '고기구이', '해산물·횟집', '분식', '중식', '일식', '아시아 음식', '양식', '치킨·버거·피자', '카페·음료', '디저트·베이커리', '술집', '유흥·단란주점', '관광식당', 'PC방·오락']],
+    ['먹거리 가게', ['반찬·즉석식품', '정육점', '식료품점', '편의점', '슈퍼·담배가게', '대규모점포']],
+    ['미용·생활', ['미용실', '네일샵', '피부관리실', '메이크업', '이발소·바버샵', '세탁소', '코인빨래방', '목욕탕·찜질방']],
+    ['의료·건강', ['의원', '치과의원', '한의원', '피부·성형의원', '병원', '약국', '안경점', '산후조리원']],
+    ['운동·여가', ['헬스·PT', '필라테스·요가', '체육도장', '골프연습장', '대형 체육시설', '노래방', '코인노래방', 'PC방', '인형뽑기·오락실', '성인게임장']],
+    ['반려동물', ['동물병원', '반려동물 서비스']],
+    ['숙박', ['숙박', '외국인 민박', '호텔']],
+  ];
   const state = { metric: '회전율', cat: '', tab: 'up', dong: null };
   let T = null, geo = null, layer = null;
 
@@ -85,13 +94,13 @@
     state.dong = code;
     const d = T.행정동[code];
     if (!d) return;
-    const rows = (T.행정동_업종[code] || []).slice(0, 14);
+    const rows = (T.행정동_업종[code] || []).slice(0, 18);
     const tr = rows.map((r) => {
       const tags = `${r[5] != null && isRise(code, r[0]) ? '<span class="tag rise">뜸</span>' : ''}${isWarn(code, r[0]) ? '<span class="tag warn">경보</span>' : ''}`;
       return `<tr><td>${esc(r[0])}${tags}</td><td>${int(r[1])}</td><td>${int(r[2])}</td><td>${int(r[3])}</td><td>${r[4] == null ? '–' : fmt(r[4], 2)}</td></tr>`;
     }).join('');
     $('detail').innerHTML = `<button class="close" type="button" id="close">닫기</button>
-      <h2>${esc(d.행정동)}</h2><div class="sub">음식점·카페 등 ${int(d.가게수)}곳 · 최근 12개월</div>
+      <h2>${esc(d.행정동)}</h2><div class="sub">인허가 가게 ${int(d.가게수)}곳 · 최근 12개월</div>
       <div class="kpis">
         <div class="kpi"><b>${fmt(d.개업률)}%</b><span>개업률</span></div>
         <div class="kpi"><b>${fmt(d.폐업률)}%</b><span>폐업률</span></div>
@@ -132,9 +141,10 @@
         <span class="s">개업 ${fmt(x.개업률)}% · 폐업 ${fmt(x.폐업률)}% · 가게 ${int(x.가게수)}곳 · 순증 ${sign(x.순증률)}%</span>`);
       note.textContent += ` 서울 평균 교체는 ${fmt(T.서울_전체.회전율, 0)}%/년입니다.`;
     } else {
-      note.textContent = `서울 전체 업종별 흐름. 개업 전년비는 최근 6개월과 1년 전 같은 6개월 비교입니다.`;
-      const rows = T.업종.filter((r) => r.업종 !== '기타').sort((a, b) => (b.개업_전년비 ?? -999) - (a.개업_전년비 ?? -999));
-      body.innerHTML = `<table class="t"><thead><tr><th>업종</th><th>가게</th><th>순증</th><th>개업 전년비</th><th>1년 생존</th></tr></thead><tbody>${
+      note.textContent = `서울 전체 업종별 흐름(가게 200곳 이상 업종). 개업 전년비는 최근 6개월과 1년 전 같은 6개월 비교입니다.`;
+      const rows = T.업종.filter((r) => r.업종 !== '기타' && r.가게수 >= 200 && (r.개업_1년전6개월 || 0) >= 20)
+        .sort((a, b) => (b.개업_전년비 ?? -999) - (a.개업_전년비 ?? -999));
+      body.innerHTML = `<table class="t"><thead><tr><th>업종</th><th>가게</th><th>순증</th><th>개업 증감</th><th>생존</th></tr></thead><tbody>${
         rows.map((r) => `<tr data-cat="${esc(r.업종)}" style="cursor:pointer"><td>${esc(r.업종)}</td><td>${int(r.가게수)}</td>
           <td class="${r.순증률 > 0 ? 'up' : r.순증률 < 0 ? 'dn' : ''}">${sign(r.순증률)}%</td>
           <td class="${r.개업_전년비 > 0 ? 'up' : r.개업_전년비 < 0 ? 'dn' : ''}">${sign(r.개업_전년비, 0)}%</td><td>${fmt(r['1년생존율'])}%</td></tr>`).join('')}</tbody></table>
@@ -158,8 +168,17 @@
     T.뜨는_동네업종.forEach((x) => riseSet.add(x.행정동코드 + '|' + x.업종));
     T.폐업경보.forEach((x) => warnSet.add(x.행정동코드 + '|' + x.업종));
     $('asof').textContent = `기준: ${T.최근12개월[0]} ~ ${T.최근12개월[1]} (최근 12개월) · 인허가 자료`;
-    const cats = T.업종.filter((r) => r.업종 !== '기타').map((r) => r.업종);
-    $('cat').innerHTML = '<option value="">업종 전체</option>' + cats.map((c) => `<option>${esc(c)}</option>`).join('');
+    const have = new Set(T.업종.filter((r) => r.업종 !== '기타').map((r) => r.업종));
+    const used = new Set();
+    let opts = '<option value="">업종 전체</option>';
+    FAMILY.forEach(([fam, list]) => {
+      const xs = list.filter((c) => have.has(c));
+      xs.forEach((c) => used.add(c));
+      if (xs.length) opts += `<optgroup label="${fam}">${xs.map((c) => `<option>${esc(c)}</option>`).join('')}</optgroup>`;
+    });
+    const rest = [...have].filter((c) => !used.has(c));
+    if (rest.length) opts += `<optgroup label="그 밖">${rest.map((c) => `<option>${esc(c)}</option>`).join('')}</optgroup>`;
+    $('cat').innerHTML = opts;
     layer = L.geoJSON(geo, {
       onEachFeature: (f, l) => {
         l.bindTooltip(() => tip(f), { sticky: true, className: 'dong-tip' });

@@ -35,6 +35,10 @@ KEYWORDS = re.compile(r"한시적|행사장|팝업|축제|페스티벌|박람|�
                       r"aT센터|DDP|디자인플라자|광장|일대|부스|로비|운동장|경기장|체육관|야구장")
 
 FOOD = {"휴게음식점", "일반음식점"}
+EVENTISH = FOOD | {"즉석판매제조가공업", "제과점영업"}     # 백화점 행사·장터에 자주 나오는 업종
+# 상권 분석에서 빼는 자료: 매장이 아닌 곳이 대부분(온라인·방문판매 사업자 등록) 또는 다른 자료와 같은 가게가 겹침
+NOT_STORE = {"건강기능식품일반판매업": "비매장 위주", "의료기기판매(임대)업": "비매장 위주",
+             "안전상비의약품판매업소": "편의점과 중복", "동물약국": "약국·동물병원과 중복"}
 CVS = re.compile(r"씨유|CU|지에스25|GS25|GS\s*25|세븐일레븐|코리아세븐|이마트24|미니스톱|emart24|스토리웨이|위드미", re.I)
 
 def extra_category(r):
@@ -118,7 +122,7 @@ def mark_filters(rows):
     def short(r):
         o, c = d(r["LCPMT_YMD"]), d(r["CLSBIZ_YMD"])
         return bool(o and c and (c - o).days < 120)
-    short_at = Counter(base_addr(r) for r in rows if r["자료"] in FOOD and short(r))
+    short_at = Counter(base_addr(r) for r in rows if r["자료"] in EVENTISH and short(r))
     for r in rows:
         why = []
         o, c = d(r["LCPMT_YMD"]), d(r["CLSBIZ_YMD"])
@@ -130,8 +134,12 @@ def mark_filters(rows):
             why.append("푸드트럭")
         if r["자료"] in FOOD and scale(r) == 0 and (closed_at[base_addr(r)] >= 3 or KEYWORDS.search((r["ROAD_NM_ADDR"] or "") + r["BPLC_NM"])):
             why.append("행사장")
-        elif r["자료"] in FOOD and short(r) and short_at[base_addr(r)] >= 3:
+        elif r["자료"] in EVENTISH and short(r) and short_at[base_addr(r)] >= 3:
             why.append("행사장")
+        if r["자료"] in NOT_STORE:
+            why = [NOT_STORE[r["자료"]]]
+        elif r["자료"] == "담배소매업" and CVS.search(r["BPLC_NM"] or ""):
+            why = ["편의점과 중복"]          # 편의점은 휴게음식점 자료로 센다
         r["제외"] = "·".join(why)
 
     # 행정 정리: 임시 영업이 아닌 폐업만 놓고 지자체·날짜별로 본다
