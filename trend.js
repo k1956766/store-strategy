@@ -100,6 +100,8 @@
         <div class="kpi"><b>${fmt(d['1년생존율'])}%</b><span>1년 생존율</span></div>
         <div class="kpi"><b>${fmt(T.서울_전체.회전율, 0)}%</b><span>서울 평균 교체</span></div>
       </div>
+      ${d.임대상권 ? `<p class="rent">소규모 상가 임대료 <b>${fmt(d.임대료_소규모)}천원/㎡</b>(월, 전년 대비 ${sign(d.임대료_전년비)}%) · 공실률 ${fmt(d.공실률_소규모)}%<br><span>한국부동산원 '${esc(d.임대상권)}' 상권 값(${esc(String(d.임대분기).slice(0, 4))}년 ${esc(String(d.임대분기).slice(5))}분기)을 가까운 동에 붙인 근사치</span></p>` : ''}
+      ${d.학원 != null ? `<p class="rent">학원·교습소 <b>${int(d.학원)}곳</b> · 최근 12개월 새로 연 곳 ${int(d.학원_최근12개월_신규)}곳 <span>(나이스)</span></p>` : ''}
       <table class="t"><thead><tr><th>업종</th><th>가게</th><th>개업</th><th>폐업</th><th>특화도</th></tr></thead><tbody>${tr}</tbody></table>`;
     $('detail').hidden = false;
     $('close').onclick = () => { state.dong = null; $('detail').hidden = true; paint(); };

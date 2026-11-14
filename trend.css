@@ -47,3 +47,5 @@ table.t td{padding:5px 3px;border-bottom:1px solid var(--rule);text-align:right}
   .panel{top:auto;left:0;right:0;bottom:0;width:auto;height:52vh;border-radius:14px 14px 0 0}
   .legend{top:12px;bottom:auto;right:12px}
 }
+.rent{font-size:12.5px;margin:4px 0 10px}
+.rent span{color:var(--ink-2);font-size:11px}

@@ -203,6 +203,36 @@ def main():
             x[col] = round(q, 4)
             del x[key]
 
+    # ── 보조 자료(있으면): R-ONE 상권 임대료·공실률(상권 → 행정동 근사), 나이스 학원
+    rent = {}
+    rp, mp = A / "임대동향_상권.csv", ROOT / "scripts" / f"상권_행정동_{SIDO}.json"
+    if rp.exists() and mp.exists():
+        rr = list(csv.DictReader(open(rp, encoding="utf-8-sig")))
+        mapping = {k: v for k, v in json.loads(mp.read_text(encoding="utf-8")).items() if not k.startswith("_")}
+        val = {(r["상가유형"], r["지표"], r["상권"], r["분기"]): float(r["값"]) for r in rr if r["값"] != ""}
+        last = max(r["분기"] for r in rr)
+        prev = f"{int(last[:4]) - 1}{last[4:]}"
+        full = {r["행정동"]: r["행정동코드"] for r in out_dong}
+        for area, dlist in mapping.items():
+            for dn in dlist:
+                code = full.get(dn.split(" ", 1)[1]) if " " in dn else None
+                code = next((x["행정동코드"] for x in out_dong if f'{x["행정동"]}' == dn), code)
+                if not code or code in rent:
+                    continue
+                r_now, r_prev = val.get(("소규모", "임대료", area, last)), val.get(("소규모", "임대료", area, prev))
+                rent[code] = {"임대상권": area, "임대료_소규모": round(r_now, 1) if r_now else None,
+                              "임대료_전년비": rate(r_now - r_prev, r_prev) if r_now and r_prev else None,
+                              "공실률_소규모": val.get(("소규모", "공실률", area, last)), "임대분기": last}
+    for x in out_dong:
+        x.update(rent.get(x["행정동코드"], {"임대상권": "", "임대료_소규모": None, "임대료_전년비": None, "공실률_소규모": None, "임대분기": ""}))
+    aca = defaultdict(lambda: [0, 0])
+    ap = A / "학원_행정동.csv"
+    if ap.exists():
+        for r in csv.DictReader(open(ap, encoding="utf-8-sig")):
+            aca[r["행정동코드"]][0] += int(r["개원"]); aca[r["행정동코드"]][1] += int(r["최근12개월_신규"])
+    for x in out_dong:
+        x["학원"], x["학원_최근12개월_신규"] = aca[x["행정동코드"]] if ap.exists() else (None, None)
+
     def write(name, data):
         with open(A / name, "w", encoding="utf-8-sig", newline="") as f:
             w = csv.DictWriter(f, fieldnames=list(data[0].keys()))
