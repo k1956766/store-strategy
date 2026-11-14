@@ -49,3 +49,12 @@ table.t td{padding:5px 3px;border-bottom:1px solid var(--rule);text-align:right}
 }
 .rent{font-size:12.5px;margin:4px 0 10px}
 .rent span{color:var(--ink-2);font-size:11px}
+.level-btn{position:fixed;top:16px;left:372px;z-index:950;font:inherit;display:flex;flex-direction:column;align-items:flex-start;gap:0;
+  background:var(--ink);color:#fff;border:0;border-radius:10px;padding:8px 14px;cursor:pointer;box-shadow:0 4px 14px rgba(31,43,61,.18)}
+.level-btn b{font-size:15px}
+.level-btn span{font-size:11px;opacity:.8}
+.level-btn:hover{background:#2c3b52}
+.brief{background:var(--paper);border-radius:8px;padding:10px 12px;margin:10px 0 4px;font-size:13px;line-height:1.55}
+.brief>b{display:block;font-size:12px;color:var(--ink-2);margin-bottom:4px}
+.brief p{margin:0 0 4px}
+@media (max-width:720px){.level-btn{top:12px;left:12px}}

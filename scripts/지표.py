@@ -58,24 +58,21 @@ def bh(ps):
 def rate(num, den):
     return round(num / den * 100, 2) if den else None
 
-def main():
-    rows = list(csv.DictReader(open(A / "월별_행정동_업종.csv", encoding="utf-8-sig")))
-    today = date.today()
-    E = months_back(f"{today.year:04d}-{today.month:02d}", 1)          # 마지막 완결 월
-    allm = sorted({r["월"] for r in rows})
-    first = allm[0]
-    R12 = [months_back(E, i) for i in range(11, -1, -1)]
-    R6, P6 = R12[6:], [months_back(m, 12) for m in R12[6:]]
-    BEFORE = [m for m in allm if m < R6[0]]                            # 뜨는 신호의 비교 기간
-    nxt = months_back(E, -1)
-
+def compute(level, rows, E, allm, first, R12, R6, P6, BEFORE, nxt, dong_code_of):
+    """level='행정동'이면 그대로, '시군구'면 행정동을 구로 묶어서 같은 지표를 낸다."""
+    def unit(code, name):
+        if level == "행정동":
+            return code, name
+        return code[:5], name.split(" ")[0]
     # (동, 업종, 월) → [월초, 개업, 폐업]
     cell = defaultdict(lambda: [0, 0, 0])
     names = {}
     for r in rows:
-        k = (r["행정동코드"], r["업종"], r["월"])
-        cell[k] = [int(r["월초_영업"]), int(r["개업"]), int(r["폐업"])]
-        names[r["행정동코드"]] = r["행정동"]
+        u, un = unit(r["행정동코드"], r["행정동"])
+        k = (u, r["업종"], r["월"])
+        x = cell[k]
+        x[0] += int(r["월초_영업"]); x[1] += int(r["개업"]); x[2] += int(r["폐업"])
+        names[u] = un
     dongs = sorted(names)
     cats = sorted({r["업종"] for r in rows})
 
@@ -128,7 +125,8 @@ def main():
             continue
         c = date.fromisoformat(r["CLSBIZ_YMD"][:10]) if r["CLSBIZ_YMD"] else None
         alive = c is None or (c - o).days >= 365
-        for key in ((r["행정동코드"], r["업종"]), ("*", r["업종"]), (r["행정동코드"], "*"), ("*", "*")):
+        u = unit(r["행정동코드"], r["행정동"])[0]
+        for key in ((u, r["업종"]), ("*", r["업종"]), (u, "*"), ("*", "*")):
             surv[key][0] += 1; surv[key][1] += alive
 
     def surv_rate(d, g):
@@ -212,26 +210,56 @@ def main():
         val = {(r["상가유형"], r["지표"], r["상권"], r["분기"]): float(r["값"]) for r in rr if r["값"] != ""}
         last = max(r["분기"] for r in rr)
         prev = f"{int(last[:4]) - 1}{last[4:]}"
-        full = {r["행정동"]: r["행정동코드"] for r in out_dong}
+        by_unit = defaultdict(list)                 # 단위 → [상권 ...]
         for area, dlist in mapping.items():
             for dn in dlist:
-                code = full.get(dn.split(" ", 1)[1]) if " " in dn else None
-                code = next((x["행정동코드"] for x in out_dong if f'{x["행정동"]}' == dn), code)
-                if not code or code in rent:
-                    continue
-                r_now, r_prev = val.get(("소규모", "임대료", area, last)), val.get(("소규모", "임대료", area, prev))
-                rent[code] = {"임대상권": area, "임대료_소규모": round(r_now, 1) if r_now else None,
-                              "임대료_전년비": rate(r_now - r_prev, r_prev) if r_now and r_prev else None,
-                              "공실률_소규모": val.get(("소규모", "공실률", area, last)), "임대분기": last}
+                u = unit(dong_code_of.get(dn, ""), dn)[0] if dn in dong_code_of else None
+                if u and area not in by_unit[u]:
+                    by_unit[u].append(area)
+        for u, areas in by_unit.items():
+            if level == "행정동":
+                areas = areas[:1]                      # 동은 가장 가까운 상권 하나
+            vals = [(val.get(("소규모", "임대료", a, last)), val.get(("소규모", "임대료", a, prev)), val.get(("소규모", "공실률", a, last))) for a in areas]
+            vals = [v for v in vals if v[0]]
+            if not vals:
+                continue
+            r_now = sum(v[0] for v in vals) / len(vals)
+            r_prev = sum(v[1] for v in vals if v[1]) / max(1, sum(1 for v in vals if v[1]))
+            vac = [v[2] for v in vals if v[2] is not None]
+            rent[u] = {"임대상권": "·".join(areas), "임대료_소규모": round(r_now, 1),
+                       "임대료_전년비": rate(r_now - r_prev, r_prev) if r_prev else None,
+                       "공실률_소규모": round(sum(vac) / len(vac), 2) if vac else None, "임대분기": last}
     for x in out_dong:
         x.update(rent.get(x["행정동코드"], {"임대상권": "", "임대료_소규모": None, "임대료_전년비": None, "공실률_소규모": None, "임대분기": ""}))
     aca = defaultdict(lambda: [0, 0])
     ap = A / "학원_행정동.csv"
     if ap.exists():
         for r in csv.DictReader(open(ap, encoding="utf-8-sig")):
-            aca[r["행정동코드"]][0] += int(r["개원"]); aca[r["행정동코드"]][1] += int(r["최근12개월_신규"])
+            u = unit(r["행정동코드"], r["행정동"])[0]
+            aca[u][0] += int(r["개원"]); aca[u][1] += int(r["최근12개월_신규"])
     for x in out_dong:
         x["학원"], x["학원_최근12개월_신규"] = aca[x["행정동코드"]] if ap.exists() else (None, None)
+
+    rising = [x for x in out_dg if x["뜨는신호_q"] < 0.1 and x["개업_최근6개월"] >= 3 and x["업종"] != "기타"]
+    closing = [x for x in out_dg if x["폐업경보_q"] < 0.1 and x["폐업_12개월"] >= 5 and x["업종"] != "기타"]
+    return out_cat, out_dong, out_dg, rising, closing, cty
+
+def main():
+    rows = list(csv.DictReader(open(A / "월별_행정동_업종.csv", encoding="utf-8-sig")))
+    today = date.today()
+    E = months_back(f"{today.year:04d}-{today.month:02d}", 1)          # 마지막 완결 월
+    allm = sorted({r["월"] for r in rows})
+    first = allm[0]
+    R12 = [months_back(E, i) for i in range(11, -1, -1)]
+    R6, P6 = R12[6:], [months_back(m, 12) for m in R12[6:]]
+    BEFORE = [m for m in allm if m < R6[0]]                            # 뜨는 신호의 비교 기간
+    nxt = months_back(E, -1)
+    dong_code_of = {}
+    for r in rows:
+        dong_code_of[r["행정동"]] = r["행정동코드"]
+    args = (rows, E, allm, first, R12, R6, P6, BEFORE, nxt, dong_code_of)
+    out_cat, out_dong, out_dg, rising, closing, cty = compute("행정동", *args)
+    _, g_dong, g_dg, g_rise, g_close, _ = compute("시군구", *args)
 
     def write(name, data):
         with open(A / name, "w", encoding="utf-8-sig", newline="") as f:
@@ -240,10 +268,10 @@ def main():
     write("지표_업종.csv", out_cat)
     write("지표_행정동.csv", out_dong)
     write("지표_행정동_업종.csv", sorted(out_dg, key=lambda x: (x["행정동코드"], -x["가게수"])))
+    write("지표_시군구.csv", g_dong)
+    write("지표_시군구_업종.csv", sorted(g_dg, key=lambda x: (x["행정동코드"], -x["가게수"])))
 
     # ── 홈페이지용 요약
-    rising = [x for x in out_dg if x["뜨는신호_q"] < 0.1 and x["개업_최근6개월"] >= 3 and x["업종"] != "기타"]
-    closing = [x for x in out_dg if x["폐업경보_q"] < 0.1 and x["폐업_12개월"] >= 5 and x["업종"] != "기타"]
     churn = sorted([x for x in out_dong if x["가게수"] >= 50], key=lambda x: -x["교체_z"])
     summary = {
         "시도": SIDO, "기준월": E, "최근12개월": [R12[0], R12[-1]], "최근6개월": [R6[0], R6[-1]],
@@ -255,7 +283,14 @@ def main():
         "교체_빈발": churn[:30], "교체_적음": churn[-15:][::-1],
         "행정동": {x["행정동코드"]: x for x in out_dong},
         "행정동_업종": defaultdict(list),
+        "시군구": {"지역": {x["행정동코드"]: x for x in g_dong}, "지역_업종": defaultdict(list),
+                 "뜨는": sorted(g_rise, key=lambda x: -x["뜨는신호_z"])[:60],
+                 "경보": sorted(g_close, key=lambda x: -x["폐업경보_z"])[:60],
+                 "교체_빈발": sorted(g_dong, key=lambda x: -x["교체_z"])},
     }
+    for x in sorted(g_dg, key=lambda x: -x["가게수"]):
+        summary["시군구"]["지역_업종"][x["행정동코드"]].append(
+            [x["업종"], x["가게수"], x["개업_12개월"], x["폐업_12개월"], x["특화도_LQ"], x["뜨는신호_z"], x["폐업경보_z"], x["1년생존율"]])
     for x in sorted(out_dg, key=lambda x: -x["가게수"]):
         if x["가게수"] >= 1 or x["개업_12개월"]:
             summary["행정동_업종"][x["행정동코드"]].append(

@@ -25,6 +25,13 @@
   const LODGING = new Set(['숙박', '외국인 민박', '호텔']);
   const state = { metric: '회전율', cat: '', tab: 'up', dong: null };
   let T = null, geo = null, layer = null;
+  const layers = {};
+  state.level = 'gu';
+  // 단위별 자료(시군구 / 읍면동)
+  const D = () => (state.level === 'gu'
+    ? { 지역: T.시군구.지역, 지역_업종: T.시군구.지역_업종, 뜨는: T.시군구.뜨는, 경보: T.시군구.경보, 교체: T.시군구.교체_빈발, min: 0 }
+    : { 지역: T.행정동, 지역_업종: T.행정동_업종, 뜨는: T.뜨는_동네업종, 경보: T.폐업경보, 교체: T.교체_빈발, min: 20 });
+  const UNIT = () => (state.level === 'gu' ? '구' : '동네');
 
   const map = L.map('map', { zoomControl: false, minZoom: 9, maxZoom: 16 }).setView([37.5565, 126.99], 11);
   L.control.zoom({ position: 'topright' }).addTo(map);
@@ -37,20 +44,20 @@
 
   // ---------- 값 ----------
   function catRow(code, cat) {
-    return (T.행정동_업종[code] || []).find((r) => r[0] === cat);
+    return (D().지역_업종[code] || []).find((r) => r[0] === cat);
   }
   function valueOf(code) {
     if (state.cat) {
       const r = catRow(code, state.cat);
       return r && r[1] >= 3 ? r[4] : null;           // 특화도(가게 3곳 이상만)
     }
-    const d = T.행정동[code];
-    if (!d || d.가게수 < 20) return null;            // 가게가 너무 적은 동은 비율이 흔들려 칠하지 않음
+    const d = D().지역[code];
+    if (!d || d.가게수 < D().min) return null;            // 가게가 너무 적은 동은 비율이 흔들려 칠하지 않음
     return d[state.metric];
   }
   function bins() {
     if (state.cat) return { cuts: [0.5, 0.8, 1.25, 2], colors: SEQ, labels: ['0.5↓', '0.8', '1.25', '2', '2↑'] };
-    const vals = Object.keys(T.행정동).map(valueOf).filter((v) => v != null).sort((a, b) => a - b);
+    const vals = Object.keys(D().지역).map(valueOf).filter((v) => v != null).sort((a, b) => a - b);
     const q = (p) => vals[Math.min(vals.length - 1, Math.floor(p * vals.length))];
     if (METRIC[state.metric].div) {
       const cuts = [-5, -1.5, 1.5, 5];
@@ -77,11 +84,11 @@
     const title = state.cat ? `${esc(state.cat)} 특화도(서울 평균=1)` : METRIC[state.metric].name;
     $('legend').innerHTML = `<div class="lt">${title}</div><div class="bins">${B.colors.map((c) => `<i style="background:${c}"></i>`).join('')}</div>
       <div class="lab">${B.labels.map((l) => `<span>${l}</span>`).join('')}</div>
-      <div class="na"><i></i>${state.cat ? '그 업종 가게 3곳 미만' : '가게 20곳 미만'}</div>`;
+      <div class="na"><i></i>${state.cat ? '그 업종 가게 3곳 미만' : state.level === 'gu' ? '자료 없음' : '가게 20곳 미만'}</div>`;
   }
 
   function tip(f) {
-    const c = f.properties.c, d = T.행정동[c];
+    const c = f.properties.c, d = D().지역[c];
     if (!d) return `<b>${esc(f.properties.n)}</b><br>자료 없음`;
     if (state.cat) {
       const r = catRow(c, state.cat);
@@ -93,15 +100,16 @@
   // ---------- 동네 상세 ----------
   function openDong(code, zoom) {
     state.dong = code;
-    const d = T.행정동[code];
+    const d = D().지역[code];
     if (!d) return;
-    const rows = (T.행정동_업종[code] || []).slice(0, 18);
+    const rows = (D().지역_업종[code] || []).slice(0, 18);
     const tr = rows.map((r) => {
       const tags = `${r[5] != null && isRise(code, r[0]) ? '<span class="tag rise">뜸</span>' : ''}${isWarn(code, r[0]) ? '<span class="tag warn">경보</span>' : ''}`;
       return `<tr><td>${esc(r[0])}${tags}</td><td>${int(r[1])}</td><td>${int(r[2])}</td><td>${int(r[3])}</td><td>${r[4] == null ? '–' : fmt(r[4], 2)}</td></tr>`;
     }).join('');
     $('detail').innerHTML = `<button class="close" type="button" id="close">닫기</button>
       <h2>${esc(d.행정동)}</h2><div class="sub">인허가 가게 ${int(d.가게수)}곳 · 최근 12개월</div>
+      <div class="brief"><b>이 ${UNIT() === '구' ? '구' : '동네'} 한눈에</b>${describe(code, d)}</div>
       <div class="kpis">
         <div class="kpi"><b>${fmt(d.개업률)}%</b><span>개업률</span></div>
         <div class="kpi"><b>${fmt(d.폐업률)}%</b><span>폐업률</span></div>
@@ -110,16 +118,58 @@
         <div class="kpi"><b>${fmt(d['1년생존율'])}%</b><span>1년 생존율</span></div>
         <div class="kpi"><b>${fmt(T.서울_전체.회전율, 0)}%</b><span>서울 평균 교체</span></div>
       </div>
-      ${d.임대상권 ? `<p class="rent">소규모 상가 임대료 <b>${fmt(d.임대료_소규모)}천원/㎡</b>(월, 전년 대비 ${sign(d.임대료_전년비)}%) · 공실률 ${fmt(d.공실률_소규모)}%<br><span>한국부동산원 '${esc(d.임대상권)}' 상권 값(${esc(String(d.임대분기).slice(0, 4))}년 ${esc(String(d.임대분기).slice(5))}분기)을 가까운 동에 붙인 근사치</span></p>` : ''}
+      ${d.임대상권 ? `<p class="rent">소규모 상가 임대료 <b>${fmt(d.임대료_소규모)}천원/㎡</b>(월, 전년 대비 ${sign(d.임대료_전년비)}%) · 공실률 ${fmt(d.공실률_소규모)}%<br><span>한국부동산원 ${state.level === 'gu' ? `구 안 상권(${esc(d.임대상권)}) 평균` : `'${esc(d.임대상권)}' 상권 값을 가까운 동에 붙인 근사치`}, ${esc(String(d.임대분기).slice(0, 4))}년 ${esc(String(d.임대분기).slice(5))}분기</span></p>` : ''}
       ${d.학원 != null ? `<p class="rent">학원·교습소 <b>${int(d.학원)}곳</b> · 최근 12개월 새로 연 곳 ${int(d.학원_최근12개월_신규)}곳 <span>(나이스)</span></p>` : ''}
       <table class="t"><thead><tr><th>업종</th><th>가게</th><th>개업</th><th>폐업</th><th>특화도</th></tr></thead><tbody>${tr}</tbody></table>`;
     $('detail').hidden = false;
     $('close').onclick = () => { state.dong = null; $('detail').hidden = true; paint(); };
     paint();
     if (zoom) {
-      layer.eachLayer((l) => { if (l.feature.properties.c === code) map.fitBounds(l.getBounds(), { paddingTopLeft: [window.innerWidth > 720 ? 380 : 20, 20], maxZoom: 14 }); });
+      layer.eachLayer((l) => { if (l.feature.properties.c === code) map.fitBounds(l.getBounds(), { paddingTopLeft: [window.innerWidth > 720 ? 380 : 20, 20], maxZoom: state.level === 'gu' ? 13 : 14 }); });
     }
     $('detail').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+  // ---------- 지역 한눈에(자동 문장) ----------
+  const pct = (arr, v) => (arr.length ? arr.filter((x) => x <= v).length / arr.length : 0.5);
+  const josa = (w, a, b) => { const c = w.charCodeAt(w.length - 1); return w + ((c - 0xac00) % 28 && c >= 0xac00 ? a : b); };
+  function describe(code, d) {
+    const rows = (D().지역_업종[code] || []).filter((r) => r[0] !== '기타');
+    const out = [];
+    const minN = state.level === 'gu' ? 30 : 8;
+    const spec = rows.filter((r) => r[1] >= minN && r[4] >= 1.4 && !LODGING.has(r[0])).sort((a, b) => b[4] - a[4]).slice(0, 3);
+    const top = rows[0];
+    const share = top ? Math.round(top[1] / Math.max(1, d.가게수) * 100) : 0;
+    if (spec.length) out.push(`<b>${josa(spec.map((r) => r[0]).join('·'), '이', '가')}</b> 서울 평균보다 몰린 곳입니다(${spec.map((r) => `${r[0]} ${fmt(r[4], 1)}배`).join(', ')}).`);
+    else if (top) out.push(`업종 구성이 서울 평균과 비슷한 생활 상권입니다.`);
+    if (top) out.push(`가게 가운데 ${josa(top[0], '이', '가')} ${share}%로 가장 많습니다.`);
+    const turn = d.회전율 / T.서울_전체.회전율;
+    let dyn = turn >= 1.25 ? `가게가 <b>자주 바뀌는</b> 곳으로, 1년에 가게의 ${fmt(d.회전율, 0)}%가 새로 열거나 닫았습니다(서울 ${fmt(T.서울_전체.회전율, 0)}%).`
+      : turn <= 0.8 ? `가게가 <b>오래 가는 안정된</b> 곳으로, 교체율 ${fmt(d.회전율, 0)}%로 서울(${fmt(T.서울_전체.회전율, 0)}%)보다 낮습니다.`
+      : `가게 교체 속도는 서울 평균 수준(${fmt(d.회전율, 0)}%)입니다.`;
+    if (d.순증률 >= 2) dyn += ` 가게 수는 1년 새 <b>${sign(d.순증률)}%</b> 늘었습니다.`;
+    else if (d.순증률 <= -2) dyn += ` 가게 수는 1년 새 <b>${sign(d.순증률)}%</b> 줄었습니다.`;
+    out.push(dyn);
+    const ups = D().뜨는.filter((x) => x.행정동코드 === code);
+    const upsN = ups.filter((x) => !LODGING.has(x.업종)).slice(0, 3), upsL = ups.filter((x) => LODGING.has(x.업종));
+    if (upsN.length) out.push(`최근 6개월 <b>${upsN.map((x) => x.업종).join('·')}</b> 개업이 서울 흐름보다 유독 많습니다(${upsN.map((x) => `${x.업종} ${int(x.개업_최근6개월)}곳, 예상 ${fmt(x.개업_기대)}곳`).join(', ')}).`);
+    if (upsL.length) out.push(`숙박·민박 개업도 크게 늘었는데, 관광 수요와 생활숙박시설 신고 정리가 함께 반영된 숫자입니다.`);
+    const ws = D().경보.filter((x) => x.행정동코드 === code).slice(0, 3);
+    if (ws.length) out.push(`<b class="dn">${ws.map((x) => x.업종).join('·')}</b> 폐업이 서울 같은 업종보다 뚜렷이 많아 들어가려면 주의가 필요합니다.`);
+    const sAll = T.업종.reduce((a, r) => a + (r['1년생존율'] || 0) * (r.생존표본 || 0), 0) / Math.max(1, T.업종.reduce((a, r) => a + (r.생존표본 || 0), 0));
+    if (d['1년생존율'] != null && d.생존표본 >= 30) {
+      if (d['1년생존율'] <= sAll - 3) out.push(`새로 연 가게의 1년 생존율(${fmt(d['1년생존율'])}%)이 서울(${fmt(sAll)}%)보다 낮습니다.`);
+      else if (d['1년생존율'] >= sAll + 3) out.push(`새로 연 가게의 1년 생존율(${fmt(d['1년생존율'])}%)이 서울(${fmt(sAll)}%)보다 높습니다.`);
+    }
+    if (d.임대료_소규모) {
+      const p = pct(T._rent[state.level], d.임대료_소규모);
+      const lv = p >= 0.8 ? '서울 상권 가운데 비싼 편' : p <= 0.2 ? '서울 상권 가운데 싼 편' : '서울 상권 중간 수준';
+      out.push(`소규모 상가 임대료는 ㎡당 월 ${fmt(d.임대료_소규모)}천원으로 ${lv}이고${d.임대료_전년비 != null ? `(1년 새 ${sign(d.임대료_전년비)}%)` : ''}, 공실률은 ${fmt(d.공실률_소규모)}%입니다.`);
+    }
+    if (d.학원 != null && d.학원 > 0) {
+      const p = pct(T._aca[state.level], d.학원 / Math.max(1, d.가게수));
+      if (p >= 0.8) out.push(`학원·교습소가 ${int(d.학원)}곳으로 가게 수에 비해 많은 <b>교육 수요</b> 지역입니다.`);
+    }
+    return out.map((t) => `<p>${t}</p>`).join('');
   }
   const riseSet = new Set(), warnSet = new Set();
   const isRise = (c, g) => riseSet.has(c + '|' + g);
@@ -129,16 +179,16 @@
   function renderTab() {
     const body = $('tab-body'), note = $('tab-note');
     if (state.tab === 'up') {
-      note.textContent = `최근 6개월(${T.최근6개월.join('~')}) 개업이 서울 업종 흐름보다 유독 몰린 동네·업종입니다. 숙박·민박·호텔은 관광·제도 영향이 커서 뒤에 모았습니다.`;
-      body.innerHTML = list([...T.뜨는_동네업종.filter((x) => !LODGING.has(x.업종)), ...T.뜨는_동네업종.filter((x) => LODGING.has(x.업종))], (x) => `<span class="nm">${esc(x.행정동)}<small>${esc(x.업종)}</small></span><span class="v up">${int(x.개업_최근6개월)}곳 개업</span>
+      note.textContent = `최근 6개월(${T.최근6개월.join('~')}) 개업이 서울 업종 흐름보다 유독 몰린 ${UNIT()}·업종입니다. 숙박·민박·호텔은 관광·제도 영향이 커서 뒤에 모았습니다.`;
+      body.innerHTML = list([...D().뜨는.filter((x) => !LODGING.has(x.업종)), ...D().뜨는.filter((x) => LODGING.has(x.업종))], (x) => `<span class="nm">${esc(x.행정동)}<small>${esc(x.업종)}</small></span><span class="v up">${int(x.개업_최근6개월)}곳 개업</span>
         <span class="s">서울 흐름대로라면 ${fmt(x.개업_기대)}곳 · 지금 ${int(x.가게수)}곳 · 특화도 ${fmt(x.특화도_LQ, 2)}${LODGING.has(x.업종) ? ' · 관광 수요·생활숙박시설 신고 영향 함께' : ''}</span>`);
     } else if (state.tab === 'cl') {
       note.textContent = '서울 같은 업종 폐업률로 기대되는 수보다 최근 12개월 폐업이 뚜렷이 많은 곳입니다.';
-      body.innerHTML = list(T.폐업경보, (x) => `<span class="nm">${esc(x.행정동)}<small>${esc(x.업종)}</small></span><span class="v dn">${int(x.폐업_12개월)}곳 폐업</span>
+      body.innerHTML = list(D().경보, (x) => `<span class="nm">${esc(x.행정동)}<small>${esc(x.업종)}</small></span><span class="v dn">${int(x.폐업_12개월)}곳 폐업</span>
         <span class="s">서울 폐업률대로라면 ${fmt(x.폐업_기대)}곳 · 폐업률 ${fmt(x.폐업률)}% · 지금 ${int(x.가게수)}곳</span>`) || '<p class="tab-note">지금은 뚜렷한 경보가 없습니다.</p>';
     } else if (state.tab === 'ch') {
-      note.textContent = '가게 50곳 이상 동네 가운데, 서울 평균 교체 속도보다 가게가 자주 바뀐 곳입니다.';
-      body.innerHTML = list(T.교체_빈발, (x) => `<span class="nm">${esc(x.행정동)}</span><span class="v">${fmt(x.회전율, 0)}%</span>
+      note.textContent = state.level === 'gu' ? '25개 구를 서울 평균보다 가게가 자주 바뀐 순서로 늘어놓았습니다.' : '가게 50곳 이상 동네 가운데, 서울 평균 교체 속도보다 가게가 자주 바뀐 곳입니다.';
+      body.innerHTML = list(D().교체, (x) => `<span class="nm">${esc(x.행정동)}</span><span class="v">${fmt(x.회전율, 0)}%</span>
         <span class="s">개업 ${fmt(x.개업률)}% · 폐업 ${fmt(x.폐업률)}% · 가게 ${int(x.가게수)}곳 · 순증 ${sign(x.순증률)}%</span>`);
       note.textContent += ` 서울 평균 교체는 ${fmt(T.서울_전체.회전율, 0)}%/년입니다.`;
     } else {
@@ -164,10 +214,15 @@
   }
 
   // ---------- 시작 ----------
-  Promise.all([fetch('data/trend/서울.json').then((r) => r.json()), fetch('data/boundary_web/행정동_서울.json').then((r) => r.json())]).then(([t, g]) => {
-    T = t; geo = g;
-    T.뜨는_동네업종.forEach((x) => riseSet.add(x.행정동코드 + '|' + x.업종));
-    T.폐업경보.forEach((x) => warnSet.add(x.행정동코드 + '|' + x.업종));
+  Promise.all([fetch('data/trend/서울.json').then((r) => r.json()), fetch('data/boundary_web/행정동_서울.json').then((r) => r.json()),
+    fetch('data/boundary_web/시군구_서울.json').then((r) => r.json())]).then(([t, g, gg]) => {
+    T = t; geo = { dong: g, gu: gg };
+    [...T.뜨는_동네업종, ...T.시군구.뜨는].forEach((x) => riseSet.add(x.행정동코드 + '|' + x.업종));
+    [...T.폐업경보, ...T.시군구.경보].forEach((x) => warnSet.add(x.행정동코드 + '|' + x.업종));
+    const rents = (o) => Object.values(o).map((x) => x.임대료_소규모).filter((v) => v).sort((a, b) => a - b);
+    T._rent = { gu: rents(T.시군구.지역), dong: rents(T.행정동) };
+    const acas = (o) => Object.values(o).map((x) => (x.학원 || 0) / Math.max(1, x.가게수)).sort((a, b) => a - b);
+    T._aca = { gu: acas(T.시군구.지역), dong: acas(T.행정동) };
     $('asof').textContent = `기준: ${T.최근12개월[0]} ~ ${T.최근12개월[1]} (최근 12개월) · 인허가 자료`;
     const have = new Set(T.업종.filter((r) => r.업종 !== '기타').map((r) => r.업종));
     const used = new Set();
@@ -180,13 +235,17 @@
     const rest = [...have].filter((c) => !used.has(c));
     if (rest.length) opts += `<optgroup label="그 밖">${rest.map((c) => `<option>${esc(c)}</option>`).join('')}</optgroup>`;
     $('cat').innerHTML = opts;
-    layer = L.geoJSON(geo, {
-      onEachFeature: (f, l) => {
-        l.bindTooltip(() => tip(f), { sticky: true, className: 'dong-tip' });
-        l.on('click', () => openDong(f.properties.c, false));
-      },
-    }).addTo(map);
+    ['gu', 'dong'].forEach((lv) => {
+      layers[lv] = L.geoJSON(geo[lv], {
+        onEachFeature: (f, l) => {
+          l.bindTooltip(() => tip(f), { sticky: true, className: 'dong-tip' });
+          l.on('click', () => openDong(f.properties.c, false));
+        },
+      });
+    });
+    layer = layers.gu.addTo(map);
     map.fitBounds(layer.getBounds(), { paddingTopLeft: [window.innerWidth > 720 ? 370 : 0, 10] });
+    setLevelButton();
     paint(); renderTab();
     $('loading').hidden = true;
   }).catch(() => { $('loading').textContent = '자료를 불러오지 못했습니다. 새로고침해 주세요.'; });
@@ -196,6 +255,18 @@
     state.metric = b.dataset.m; state.cat = ''; $('cat').value = '';
     $('metric').querySelectorAll('button').forEach((x) => x.setAttribute('aria-checked', String(x === b)));
     paint();
+  });
+  function setLevelButton() {
+    const b = $('level');
+    b.innerHTML = state.level === 'gu' ? '<b>시군구</b><span>눌러서 읍면동으로</span>' : '<b>읍면동</b><span>눌러서 시군구로</span>';
+    b.setAttribute('aria-label', `지역 단위 ${state.level === 'gu' ? '시군구' : '읍면동'}, 눌러서 바꾸기`);
+  }
+  $('level').addEventListener('click', () => {
+    state.level = state.level === 'gu' ? 'dong' : 'gu';
+    map.removeLayer(layer);
+    layer = layers[state.level].addTo(map);
+    state.dong = null; $('detail').hidden = true;
+    setLevelButton(); paint(); renderTab();
   });
   $('cat').addEventListener('change', (e) => { state.cat = e.target.value; paint(); });
   $('tabs').addEventListener('click', (e) => {
