@@ -34,6 +34,57 @@ KAKAO = os.environ.get("KAKAO_REST_KEY", "").strip()
 KEYWORDS = re.compile(r"한시적|행사장|팝업|축제|페스티벌|박람|전시장|컨벤션|컨벤시아|메쎄|코엑스|COEX|SETEC|킨텍스|KINTEX|"
                       r"aT센터|DDP|디자인플라자|광장|일대|부스|로비|운동장|경기장|체육관|야구장")
 
+FOOD = {"휴게음식점", "일반음식점"}
+CVS = re.compile(r"씨유|CU|지에스25|GS25|GS\s*25|세븐일레븐|코리아세븐|이마트24|미니스톱|emart24|스토리웨이|위드미", re.I)
+
+def extra_category(r):
+    """음식점 밖 인허가 업종의 분석용 업종 이름."""
+    lab, name = r["자료"], r["BPLC_NM"] or ""
+    sub = (r.get("SNTTN_BZSTAT_NM") or r.get("BZSTAT_SE_NM") or "")
+    if lab == "제과점영업": return "디저트·베이커리"
+    if lab == "즉석판매제조가공업": return "반찬·즉석식품"
+    if lab == "축산판매업": return "정육점"
+    if lab == "식품판매업(기타)": return "식료품점"
+    if lab == "건강기능식품일반판매업": return "건강기능식품"
+    if lab in ("단란주점영업", "유흥주점영업"): return "유흥·단란주점"
+    if lab == "관광식당": return "관광식당"
+    if lab == "담배소매업": return "편의점(담배소매)" if CVS.search(name) else "슈퍼·담배가게"
+    if lab == "안전상비의약품판매업소": return "상비약 판매점"
+    if lab == "약국": return "약국"
+    if lab == "의원":
+        subj = r.get("MDEXM_SBJCT_CN_NM") or ""
+        if "치과" in name or subj.startswith("치과"): return "치과의원"
+        if "한의" in name or subj.startswith("한방") or "한의" in subj: return "한의원"
+        if re.search(r"피부|성형", subj.split(",")[0] + name): return "피부·성형의원"
+        return "의원"
+    if lab == "병원": return "병원"
+    if lab == "안경업": return "안경점"
+    if lab == "의료기기판매(임대)업": return "의료기기점"
+    if lab == "산후조리업": return "산후조리원"
+    if lab == "미용업":
+        if "네일" in sub or "네일" in name: return "네일샵"
+        if "피부" in sub: return "피부관리실"
+        if "화장" in sub or "메이크업" in sub: return "메이크업"
+        return "미용실"
+    if lab == "이용업": return "이발소·바버샵"
+    if lab == "세탁업": return "코인빨래방" if re.search(r"빨래|코인|워시|런드리|laundry", name, re.I) else "세탁소"
+    if lab == "목욕장업": return "목욕탕·찜질방"
+    if lab == "체력단련장업": return "필라테스·요가" if re.search(r"필라테스|요가|pilates|yoga", name, re.I) else "헬스·PT"
+    if lab == "체육도장업": return "체육도장"
+    if lab == "골프연습장업": return "골프연습장"
+    if lab in ("수영장업", "종합체육시설업"): return "대형 체육시설"
+    if lab == "노래연습장업": return "코인노래방" if "코인" in name else "노래방"
+    if lab == "인터넷컴퓨터게임시설제공업": return "PC방"
+    if lab == "청소년게임제공업": return "인형뽑기·오락실"
+    if lab == "일반게임제공업": return "성인게임장"
+    if lab == "숙박업": return "숙박"
+    if lab == "외국인관광도시민박업": return "외국인 민박"
+    if lab == "관광숙박업": return "호텔"
+    if lab == "동물병원": return "동물병원"
+    if lab in ("동물미용업", "동물위탁관리업", "동물판매업", "동물약국"): return "반려동물 서비스"
+    if lab == "대규모점포": return "대규모점포"
+    return lab
+
 def d(s):
     return date.fromisoformat(s[:10]) if s else None
 
@@ -57,12 +108,17 @@ def load_rows():
             for r in csv.DictReader(gzip.open(f, "rt", encoding="utf-8")):
                 r["자료"] = label
                 r["지자체"] = name
-                rows[r["MNG_NO"]] = r
+                rows[(label, r["MNG_NO"])] = r
     return list(rows.values())
 
 def mark_filters(rows):
     """임시 영업과 행정 정리 표시. 사유를 r['제외']에 넣는다."""
     closed_at = Counter(base_addr(r) for r in rows if r["CLSBIZ_YMD"])
+    # 같은 주소에서 넉 달 안에 문 닫은 가게가 3곳 이상 → 장터·팝업 행사(규모가 있어도)
+    def short(r):
+        o, c = d(r["LCPMT_YMD"]), d(r["CLSBIZ_YMD"])
+        return bool(o and c and (c - o).days < 120)
+    short_at = Counter(base_addr(r) for r in rows if r["자료"] in FOOD and short(r))
     for r in rows:
         why = []
         o, c = d(r["LCPMT_YMD"]), d(r["CLSBIZ_YMD"])
@@ -70,9 +126,11 @@ def mark_filters(rows):
             why.append("30일 안 폐업")
         if "한시적" in r["BPLC_NM"]:
             why.append("한시적")
-        if r["BZSTAT_SE_NM"] == "푸드트럭":
+        if r["자료"] in FOOD and r["BZSTAT_SE_NM"] == "푸드트럭":
             why.append("푸드트럭")
-        if scale(r) == 0 and (closed_at[base_addr(r)] >= 3 or KEYWORDS.search((r["ROAD_NM_ADDR"] or "") + r["BPLC_NM"])):
+        if r["자료"] in FOOD and scale(r) == 0 and (closed_at[base_addr(r)] >= 3 or KEYWORDS.search((r["ROAD_NM_ADDR"] or "") + r["BPLC_NM"])):
+            why.append("행사장")
+        elif r["자료"] in FOOD and short(r) and short_at[base_addr(r)] >= 3:
             why.append("행사장")
         r["제외"] = "·".join(why)
 
@@ -80,7 +138,7 @@ def mark_filters(rows):
     by_day = defaultdict(list)
     for r in rows:
         if r["CLSBIZ_YMD"] and not r["제외"]:
-            by_day[(r["지자체"], r["CLSBIZ_YMD"][:10])].append(r)
+            by_day[(r["지자체"] + "|" + ("음식점" if r["자료"] in FOOD else r["자료"]), r["CLSBIZ_YMD"][:10])].append(r)
     per_region = defaultdict(list)
     for (reg, day), rs in by_day.items():
         per_region[reg].append(len(rs))
@@ -89,7 +147,7 @@ def mark_filters(rows):
         med = statistics.median(per_region[reg]) if per_region[reg] else 1
         life = statistics.median([(d(r["CLSBIZ_YMD"]) - d(r["LCPMT_YMD"])).days / 365 for r in rs if r["LCPMT_YMD"]])
         if len(rs) >= max(20, 5 * med) and life >= 3:
-            flagged.append((reg, day, len(rs), round(life, 1)))
+            flagged.append((reg.split("|")[0], day, len(rs), round(life, 1), reg.split("|")[1]))
             for r in rs:
                 r["제외"] = "행정 정리"
     return flagged
@@ -130,6 +188,9 @@ def main():
     print(f"{SIDO}: 가게 {len(rows):,}곳 읽음")
     qcache = json.loads((ROOT / "data" / "업종조회_캐시.json").read_text(encoding="utf-8")) if (ROOT / "data" / "업종조회_캐시.json").exists() else {}
     for r in rows:
+        if r["자료"] not in FOOD:
+            r["업종"], r["업종근거"] = extra_category(r), "인허가 업종"
+            continue
         cat, why = 업종분류.classify(r["BZSTAT_SE_NM"], r["BPLC_NM"])
         q = qcache.get(r["MNG_NO"]) or {}
         if cat == "기타" and q.get("업종"):
@@ -192,7 +253,7 @@ def main():
         w.writerow(["월", "행정동코드", "행정동", "업종", "월초_영업", "개업", "폐업"])
         for k in sorted(agg):
             w.writerow(list(k) + agg[k])
-    keep = ["MNG_NO", "BPLC_NM", "자료", "BZSTAT_SE_NM", "업종", "업종근거", "LCPMT_YMD", "CLSBIZ_YMD", "SALS_STTS_NM",
+    keep = ["MNG_NO", "BPLC_NM", "자료", "BZSTAT_SE_NM", "SNTTN_BZSTAT_NM", "업종", "업종근거", "LCPMT_YMD", "CLSBIZ_YMD", "SALS_STTS_NM",
             "지자체", "행정동코드", "행정동", "위도", "경도", "ROAD_NM_ADDR", "FCLT_TOTAL_SCL", "제외"]
     with gzip.open(OUT / "가게.csv.gz", "wt", encoding="utf-8", newline="") as f:
         w = csv.DictWriter(f, fieldnames=keep, extrasaction="ignore")
@@ -200,7 +261,7 @@ def main():
         w.writerows(rows)
     with open(OUT / "걸러낸_날.csv", "w", encoding="utf-8-sig", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["지자체", "날짜", "폐업건수", "영업기간_중앙값_년"])
+        w.writerow(["지자체", "날짜", "폐업건수", "영업기간_중앙값_년", "자료"])
         w.writerows(sorted(flagged))
 
     ex = Counter(r["제외"].split("·")[0] for r in rows if r["제외"])
