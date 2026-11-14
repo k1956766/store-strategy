@@ -1,0 +1,48 @@
+name: 보조 자료
+
+# 상권 동향 분석 보조 자료: R-ONE 상권 임대료·공실률, 나이스 학원·교습소. 손으로 돌린다(분기마다 한 번이면 충분).
+on:
+  workflow_dispatch:
+    inputs:
+      sido:
+        description: "시도(서울, 경기, 인천)"
+        default: "서울"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: aux
+  cancel-in-progress: false
+
+jobs:
+  aux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 임대동향(R-ONE)
+        env:
+          REB_KEY: ${{ secrets.REB_KEY }}
+          HIST_SIDO: ${{ inputs.sido }}
+        run: python -u scripts/임대동향받기.py
+      - name: 학원·교습소(나이스)
+        env:
+          NEIS_KEY: ${{ secrets.NEIS_KEY }}
+          KAKAO_REST_KEY: ${{ secrets.KAKAO_REST_KEY }}
+          HIST_SIDO: ${{ inputs.sido }}
+        run: |
+          pip install -q shapely
+          python -u scripts/학원받기.py
+      - name: 결과 저장
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
+          git add analysis/${{ inputs.sido }}/임대동향_상권.csv analysis/${{ inputs.sido }}/학원.csv.gz analysis/${{ inputs.sido }}/학원_행정동.csv
+          if git diff --cached --quiet; then echo "변경 없음"; exit 0; fi
+          git commit -m "보조 자료: ${{ inputs.sido }}"
+          for i in 1 2 3; do git pull --rebase -q origin main && git push && break; sleep 10; done
