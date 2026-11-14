@@ -129,8 +129,8 @@
   function renderTab() {
     const body = $('tab-body'), note = $('tab-note');
     if (state.tab === 'up') {
-      note.textContent = `최근 6개월(${T.최근6개월.join('~')}) 개업이 서울 업종 흐름보다 유독 몰린 동네·업종입니다.`;
-      body.innerHTML = list(T.뜨는_동네업종, (x) => `<span class="nm">${esc(x.행정동)}<small>${esc(x.업종)}</small></span><span class="v up">${int(x.개업_최근6개월)}곳 개업</span>
+      note.textContent = `최근 6개월(${T.최근6개월.join('~')}) 개업이 서울 업종 흐름보다 유독 몰린 동네·업종입니다. 숙박·민박·호텔은 관광·제도 영향이 커서 뒤에 모았습니다.`;
+      body.innerHTML = list([...T.뜨는_동네업종.filter((x) => !LODGING.has(x.업종)), ...T.뜨는_동네업종.filter((x) => LODGING.has(x.업종))], (x) => `<span class="nm">${esc(x.행정동)}<small>${esc(x.업종)}</small></span><span class="v up">${int(x.개업_최근6개월)}곳 개업</span>
         <span class="s">서울 흐름대로라면 ${fmt(x.개업_기대)}곳 · 지금 ${int(x.가게수)}곳 · 특화도 ${fmt(x.특화도_LQ, 2)}${LODGING.has(x.업종) ? ' · 관광 수요·생활숙박시설 신고 영향 함께' : ''}</span>`);
     } else if (state.tab === 'cl') {
       note.textContent = '서울 같은 업종 폐업률로 기대되는 수보다 최근 12개월 폐업이 뚜렷이 많은 곳입니다.';
@@ -160,7 +160,7 @@
   }
   function list(arr, fn) {
     if (!arr || !arr.length) return '';
-    return `<ol class="rank">${arr.slice(0, 40).map((x) => `<li data-c="${x.행정동코드}" ${x.업종 ? `data-g="${esc(x.업종)}"` : ''}>${fn(x)}</li>`).join('')}</ol>`;
+    return `<ol class="rank">${arr.slice(0, 60).map((x) => `<li data-c="${x.행정동코드}" ${x.업종 ? `data-g="${esc(x.업종)}"` : ''}>${fn(x)}</li>`).join('')}</ol>`;
   }
 
   // ---------- 시작 ----------
