@@ -191,7 +191,8 @@ def main():
                        "개업_12개월": v["o12"], "폐업_12개월": v["c12"],
                        "개업률": rate(v["o12"], v["avg"]), "폐업률": rate(v["c12"], v["avg"]),
                        "순증": v["s1"] - v["s0"], "특화도_LQ": round(lq, 2) if lq else None,
-                       "개업_최근6개월": v["o6"], "뜨는신호_z": round(z_up, 2) if z_up is not None else None,
+                       "개업_최근6개월": v["o6"], "개업_기대": round(exp_up, 1) if exp_up is not None else None,
+                       "폐업_기대": round(exp_cl, 1) if exp_cl is not None else None, "뜨는신호_z": round(z_up, 2) if z_up is not None else None,
                        "폐업경보_z": round(z_cl, 2) if z_cl is not None else None,
                        "1년생존율": sr, "생존표본": sn,
                        "_p_up": pois_sf(v["o6"], exp_up) if exp_up is not None else 1.0,
@@ -217,6 +218,8 @@ def main():
     summary = {
         "시도": SIDO, "기준월": E, "최근12개월": [R12[0], R12[-1]], "최근6개월": [R6[0], R6[-1]],
         "업종": out_cat,
+        "서울_전체": {"개업률": rate(cty["o12"], cty["avg"]), "폐업률": rate(cty["c12"], cty["avg"]),
+                    "회전율": rate(cty["o12"] + cty["c12"], cty["avg"])},
         "뜨는_동네업종": sorted(rising, key=lambda x: -x["뜨는신호_z"])[:60],
         "폐업경보": sorted(closing, key=lambda x: -x["폐업경보_z"])[:60],
         "교체_빈발": churn[:30], "교체_적음": churn[-15:][::-1],

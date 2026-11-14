@@ -35,11 +35,11 @@ jobs:
           K: ${{ secrets.VWORLD_KEY }}
         run: |
           mkdir -p _site/data
-          cp index.html app.js style.css _site/
+          cp index.html app.js style.css trend.html trend.js trend.css _site/
           cp -r lib _site/
-          cp -r data/map data/sigungu_base.json _site/data/
+          cp -r data/map data/sigungu_base.json data/trend data/boundary_web _site/data/
           K=$(printf '%s' "$K" | tr -d '[:space:]')
-          sed -i -E "s/const VW_KEY = '[^']*'/const VW_KEY = '${K}'/" _site/app.js
+          sed -i -E "s/const VW_KEY = '[^']*'/const VW_KEY = '${K}'/" _site/app.js _site/trend.js
           du -sh _site
 
       - uses: actions/configure-pages@v5

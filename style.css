@@ -108,3 +108,6 @@ body{font-family:var(--font);color:var(--ink);font-size:15px;line-height:1.5;-we
   .leaflet-top.leaflet-right{top:0}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+.nav-trend{margin-top:8px!important}
+.nav-trend a{font-weight:700;color:var(--focus)}
+.nav-trend span{font-size:12px}

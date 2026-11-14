@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>상권 동향 — 동네별 뜨는 업종·폐업 경보·가게 교체(서울)</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="lib/leaflet.css">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="trend.css">
+</head>
+<body>
+<div id="map" aria-label="서울 행정동 지도"></div>
+
+<aside class="panel" aria-label="상권 동향">
+  <header class="brand">
+    <nav class="crumbs"><a href="./">새로 생긴 가게 지도</a> · <b>상권 동향</b></nav>
+    <h1>상권 동향 <span class="beta-tag">서울 시범</span></h1>
+    <p class="asof" id="asof">자료를 불러오는 중…</p>
+    <p>인허가 개업·폐업 기록으로 동네마다 어떤 가게가 늘고 줄고 바뀌는지 봅니다.</p>
+  </header>
+
+  <section class="field">
+    <span class="fl" id="metric-label">지도 색</span>
+    <div class="seg seg4" role="radiogroup" aria-labelledby="metric-label" id="metric">
+      <button type="button" role="radio" aria-checked="true" data-m="회전율">교체</button>
+      <button type="button" role="radio" aria-checked="false" data-m="폐업률">폐업</button>
+      <button type="button" role="radio" aria-checked="false" data-m="개업률">개업</button>
+      <button type="button" role="radio" aria-checked="false" data-m="순증률">순증</button>
+    </div>
+    <label for="cat" class="sub">업종을 고르면 그 업종이 몰린 정도(특화도)로 칠합니다</label>
+    <select id="cat"><option value="">업종 전체</option></select>
+  </section>
+
+  <section class="detail" id="detail" hidden aria-live="polite"></section>
+
+  <section class="tabs-wrap">
+    <div class="tabs" role="tablist" id="tabs">
+      <button role="tab" aria-selected="true" data-t="up">뜨는 곳</button>
+      <button role="tab" aria-selected="false" data-t="cl">폐업 경보</button>
+      <button role="tab" aria-selected="false" data-t="ch">교체 잦은 동네</button>
+      <button role="tab" aria-selected="false" data-t="cat">업종 흐름</button>
+    </div>
+    <p class="tab-note" id="tab-note"></p>
+    <div id="tab-body"></div>
+  </section>
+
+  <footer class="basis">
+    <p><b>읽는 법.</b> 개업률·폐업률은 최근 12개월 개업·폐업 수를 같은 기간 평균 영업 가게 수로 나눈 값(%/년), 교체(회전율)는 둘을 더한 값입니다. 순증률은 12개월 동안 가게 수가 늘거나 준 비율입니다.</p>
+    <p><b>뜨는 곳</b>은 최근 6개월 개업이, 그 업종이 서울 전체에서 늘어난 몫과 계절을 빼고도 그 동네에 유독 몰린 곳입니다. <b>폐업 경보</b>는 서울 같은 업종 폐업률로 기대되는 수보다 폐업이 뚜렷이 많은 곳입니다. 둘 다 여러 동네를 한꺼번에 볼 때 우연히 걸리는 것을 줄이도록 보정해(거짓 신호 10% 이하) 골랐습니다.</p>
+    <p><b>특화도</b>는 동네 가게 가운데 그 업종 비중을 서울 평균 비중으로 나눈 값으로, 1보다 크면 그 업종이 평균보다 몰린 동네입니다. 1년 생존율은 표본이 작은 동네를 서울 평균 쪽으로 당겨 보정했습니다.</p>
+    <p>행정안전부 지방행정 인허가 자료. 한시적·행사장 영업, 30일 안에 닫은 가게, 지자체가 오래 방치된 등록을 한꺼번에 정리한 날의 폐업은 뺐습니다. 인허가 폐업일은 실제 영업 종료보다 늦게 신고되는 일이 많아 생존율은 실제보다 높게 나옵니다.</p>
+  </footer>
+</aside>
+
+<div class="legend" id="legend" aria-label="지도 범례"></div>
+<div class="loading" id="loading">자료를 불러오는 중…</div>
+
+<script src="lib/leaflet.js"></script>
+<script src="trend.js"></script>
+</body>
+</html>
