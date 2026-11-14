@@ -22,6 +22,7 @@
     ['반려동물', ['동물병원', '반려동물 서비스']],
     ['숙박', ['숙박', '외국인 민박', '호텔']],
   ];
+  const LODGING = new Set(['숙박', '외국인 민박', '호텔']);
   const state = { metric: '회전율', cat: '', tab: 'up', dong: null };
   let T = null, geo = null, layer = null;
 
@@ -130,7 +131,7 @@
     if (state.tab === 'up') {
       note.textContent = `최근 6개월(${T.최근6개월.join('~')}) 개업이 서울 업종 흐름보다 유독 몰린 동네·업종입니다.`;
       body.innerHTML = list(T.뜨는_동네업종, (x) => `<span class="nm">${esc(x.행정동)}<small>${esc(x.업종)}</small></span><span class="v up">${int(x.개업_최근6개월)}곳 개업</span>
-        <span class="s">서울 흐름대로라면 ${fmt(x.개업_기대)}곳 · 지금 ${int(x.가게수)}곳 · 특화도 ${fmt(x.특화도_LQ, 2)}</span>`);
+        <span class="s">서울 흐름대로라면 ${fmt(x.개업_기대)}곳 · 지금 ${int(x.가게수)}곳 · 특화도 ${fmt(x.특화도_LQ, 2)}${LODGING.has(x.업종) ? ' · 관광 수요·생활숙박시설 신고 영향 함께' : ''}</span>`);
     } else if (state.tab === 'cl') {
       note.textContent = '서울 같은 업종 폐업률로 기대되는 수보다 최근 12개월 폐업이 뚜렷이 많은 곳입니다.';
       body.innerHTML = list(T.폐업경보, (x) => `<span class="nm">${esc(x.행정동)}<small>${esc(x.업종)}</small></span><span class="v dn">${int(x.폐업_12개월)}곳 폐업</span>
