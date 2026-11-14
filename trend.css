@@ -78,3 +78,13 @@ button.sort.on{color:var(--ink)}
 button.sort:hover{color:var(--ink)}
 .arr{display:inline-flex;flex-direction:column;line-height:.72;font-size:10px;color:#9aa3ad}
 button.sort.on .arr{color:var(--ink)}
+.brief h3{text-align:center;font-size:18px;color:#111;margin:2px 0 8px;letter-spacing:-.01em}
+.btype{text-align:center;margin-bottom:8px}
+.ttag{display:inline-block;background:var(--ink);color:#fff;font-size:12px;font-weight:700;border-radius:999px;padding:2px 10px;margin:0 3px}
+.tsub{display:block;font-size:11px;color:var(--ink-2);margin-top:4px}
+.bsec{margin:8px 0 2px}
+.bsec h4{font-size:12.5px;margin:0 0 2px;color:var(--ink)}
+.bsec ul{list-style:none;margin:0;padding:0}
+.bsec li{position:relative;padding-left:12px;margin:2px 0}
+.bsec li::before{content:"-";position:absolute;left:0;color:var(--ink-2)}
+.brief>ul{list-style:none;padding:0;margin:0}
