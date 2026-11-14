@@ -60,7 +60,7 @@ def main():
         rows += page(i)[1]
     print(f"{SIDO} 학원·교습소 {len(rows):,}곳, 상태 {dict((s, sum(1 for r in rows if r['REG_STTUS_NM'] == s)) for s in {r['REG_STTUS_NM'] for r in rows})}", flush=True)
 
-    gpath = ROOT / "data" / "좌표_캐시.json"
+    gpath = ROOT / "data" / "좌표_캐시_학원.json"    # 매일 갱신 캐시와 따로(동시에 커밋해도 안 부딪히게)
     gcache = json.loads(gpath.read_text(encoding="utf-8")) if gpath.exists() else {}
     feats = json.loads((ROOT / "data" / "boundary" / f"행정동_{SIDO}.geojson").read_text(encoding="utf-8"))["features"]
     polys = [shape(f["geometry"]) for f in feats]
@@ -95,9 +95,9 @@ def main():
     for r in out:
         if not r["행정동코드"] or r["상태"] != "개원":
             continue
-        k = (r["행정동코드"], r["행정동"], r["분야"])
+        k = (r["행정동코드"], r["행정동"], r["분야"] or "기타")
         agg[k][0] += 1
-        agg[k][1] += (r["개설일"] or r["등록일"]) >= since
+        agg[k][1] += (r["개설일"] or r["등록일"] or "") >= since
     with open(A / "학원_행정동.csv", "w", encoding="utf-8-sig", newline="") as f:
         w = csv.writer(f); w.writerow(["행정동코드", "행정동", "분야", "개원", "최근12개월_신규"])
         for k in sorted(agg):

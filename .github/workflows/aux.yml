@@ -44,6 +44,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
           for f in 임대동향_상권.csv 학원.csv.gz 학원_행정동.csv; do [ -f "analysis/${{ inputs.sido }}/$f" ] && git add "analysis/${{ inputs.sido }}/$f"; done
+          [ -f data/좌표_캐시_학원.json ] && git add data/좌표_캐시_학원.json
+          git checkout -- . 2>/dev/null || true
           if git diff --cached --quiet; then echo "변경 없음"; exit 0; fi
           git commit -m "보조 자료: ${{ inputs.sido }}"
           for i in 1 2 3; do git pull --rebase -q origin main && git push && break; sleep 10; done
