@@ -102,10 +102,23 @@
     state.dong = code;
     const d = D().지역[code];
     if (!d) return;
-    const rows = (D().지역_업종[code] || []).slice(0, 18);
+    // 업종 표: 인허가 업종 + 학원·교습소(나이스, 폐원 기록이 없어 폐업은 '–')
+    let rows = (D().지역_업종[code] || []).map((r) => ({ 업종: r[0], 가게: r[1], 개업: r[2], 폐업: r[3], lq: r[4] }));
+    if (d.학원 != null && d.학원 > 0) {
+      const all = Object.values(D().지역);
+      const acaAll = all.reduce((a, x) => a + (x.학원 || 0), 0), shopAll = all.reduce((a, x) => a + x.가게수, 0);
+      const lq = acaAll ? (d.학원 / (d.가게수 + d.학원)) / (acaAll / (shopAll + acaAll)) : null;
+      rows.push({ 업종: '학원·교습소', 가게: d.학원, 개업: d.학원_최근12개월_신규, 폐업: null, lq, aca: true });
+    }
+    rows = rows.sort((a, b) => b.가게 - a.가게).slice(0, 24);
+    // 특화도 상위 3개는 빨강, 하위 3개는 파랑(가게 5곳 이상, '기타' 제외)
+    const ranked = rows.filter((r) => r.lq != null && r.가게 >= 5 && r.업종 !== '기타').sort((a, b) => b.lq - a.lq);
+    const hi = new Set(ranked.slice(0, 3).map((r) => r.업종));
+    const lo = new Set(ranked.length > 6 ? ranked.slice(-3).map((r) => r.업종) : []);
     const tr = rows.map((r) => {
-      const tags = `${r[5] != null && isRise(code, r[0]) ? '<span class="tag rise">뜸</span>' : ''}${isWarn(code, r[0]) ? '<span class="tag warn">경보</span>' : ''}`;
-      return `<tr><td>${esc(r[0])}${tags}</td><td>${int(r[1])}</td><td>${int(r[2])}</td><td>${int(r[3])}</td><td>${r[4] == null ? '–' : fmt(r[4], 2)}</td></tr>`;
+      const tags = `${isRise(code, r.업종) ? '<span class="tag rise">뜸</span>' : ''}${isWarn(code, r.업종) ? '<span class="tag warn">경보</span>' : ''}${r.aca ? '<span class="tag src">나이스</span>' : ''}`;
+      const cls = hi.has(r.업종) ? 'lq hi' : lo.has(r.업종) ? 'lq lo' : 'lq';
+      return `<tr><td>${esc(r.업종)}${tags}</td><td>${int(r.가게)}</td><td>${int(r.개업)}</td><td>${r.폐업 == null ? '–' : int(r.폐업)}</td><td class="${cls}">${r.lq == null ? '–' : fmt(r.lq, 2)}</td></tr>`;
     }).join('');
     $('detail').innerHTML = `<button class="close" type="button" id="close">닫기</button>
       <h2>${esc(d.행정동)}</h2><div class="sub">인허가 가게 ${int(d.가게수)}곳 · 최근 12개월</div>
@@ -119,13 +132,13 @@
         <div class="kpi"><b>${fmt(T.서울_전체.회전율, 0)}%</b><span>서울 평균 교체</span></div>
       </div>
       ${d.임대상권 ? `<p class="rent">소규모 상가 임대료 <b>${fmt(d.임대료_소규모)}천원/㎡</b>(월, 전년 대비 ${sign(d.임대료_전년비)}%) · 공실률 ${fmt(d.공실률_소규모)}%<br><span>한국부동산원 ${state.level === 'gu' ? `구 안 상권(${esc(d.임대상권)}) 평균` : `'${esc(d.임대상권)}' 상권 값을 가까운 동에 붙인 근사치`}, ${esc(String(d.임대분기).slice(0, 4))}년 ${esc(String(d.임대분기).slice(5))}분기</span></p>` : ''}
-      ${d.학원 != null ? `<p class="rent">학원·교습소 <b>${int(d.학원)}곳</b> · 최근 12개월 새로 연 곳 ${int(d.학원_최근12개월_신규)}곳 <span>(나이스)</span></p>` : ''}
-      <table class="t"><thead><tr><th>업종</th><th>가게</th><th>개업</th><th>폐업</th><th>특화도</th></tr></thead><tbody>${tr}</tbody></table>`;
+      <table class="t"><thead><tr><th>업종</th><th>가게</th><th>개업</th><th>폐업</th><th>특화도</th></tr></thead><tbody>${tr}</tbody></table>
+      <p class="tab-note">특화도: 그 업종 비중이 서울 평균의 몇 배인지. <span class="lq hi">빨강</span>은 이 지역에서 가장 몰린 3개, <span class="lq lo">파랑</span>은 가장 적은 3개. 학원·교습소는 나이스 자료라 개업은 최근 12개월 새로 연 곳, 폐업 기록은 없습니다.</p>`;
     $('detail').hidden = false;
     $('close').onclick = () => { state.dong = null; $('detail').hidden = true; paint(); };
     paint();
     if (zoom) {
-      layer.eachLayer((l) => { if (l.feature.properties.c === code) map.fitBounds(l.getBounds(), { paddingTopLeft: [window.innerWidth > 720 ? 380 : 20, 20], maxZoom: state.level === 'gu' ? 13 : 14 }); });
+      layer.eachLayer((l) => { if (l.feature.properties.c === code) map.fitBounds(l.getBounds(), { paddingTopLeft: [window.innerWidth > 720 ? document.querySelector('.panel').offsetWidth + 40 : 20, 20], maxZoom: state.level === 'gu' ? 13 : 14 }); });
     }
     $('detail').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
@@ -244,7 +257,7 @@
       });
     });
     layer = layers.gu.addTo(map);
-    map.fitBounds(layer.getBounds(), { paddingTopLeft: [window.innerWidth > 720 ? 370 : 0, 10] });
+    map.fitBounds(layer.getBounds(), { paddingTopLeft: [window.innerWidth > 720 ? document.querySelector('.panel').offsetWidth + 30 : 0, 10] });
     setLevelButton();
     paint(); renderTab();
     $('loading').hidden = true;
