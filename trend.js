@@ -67,7 +67,7 @@
       desc: '개업률 + 폐업률. 가게가 자주 바뀌는 곳일수록 높음 · 인허가' },
     { id: '생존율', g: 'flow', name: '1년 생존율', unit: '%', d: 1, kind: 'div', rate: true, get: (c, d) => (d.생존표본 >= 20 ? d['1년생존율'] : null), ref: survAll, refName: '서울 전체',
       desc: '새로 연 가게 중 1년 넘게 영업한 비율(표본 작은 곳은 서울 쪽으로 보정). 인허가 폐업 신고가 늦어 실제보다 높게 나옴' },
-    { id: '변화지표', g: 'flow', name: '상권변화지표', kind: 'cat', get: (c) => ratioOf(P(c), '변화'), ready: () => hasP('변화'),
+    { id: '변화지표', g: 'flow', name: '상권변화지표', kind: 'cat', order: ['다이나믹', '상권확장', '상권축소', '정체'], get: (c) => ratioOf(P(c), '변화'), ready: () => hasP('변화'),
       desc: '운영 중·폐업 가게의 평균 영업기간을 서울과 비교해 나눈 상권 단계 · 서울시 상권분석서비스' },
     // ② 상권 구조
     { id: '밀도', g: 'struct', name: '점포 밀도', unit: '곳/㎢', d: 0, kind: 'seq', get: (c, d) => d.점포밀도, ref: () => median(allVals(LAYERS_BY.밀도)), refName: '중간값',
@@ -102,8 +102,8 @@
     // ④ 돈
     { id: '매출', g: 'money', name: '점포당 추정매출', unit: '만원/월', d: 0, kind: 'seq', def: true, get: (c) => (P(c) && P(c).점포당매출 != null ? P(c).점포당매출 / 1e4 : null), ready: () => hasP('점포당매출'), ref: () => median(allVals(LAYERS_BY.매출)), refName: '중간값',
       desc: '분기 추정매출 ÷ 점포 수 ÷ 3 · 서울시 추정매출(카드사 기반)' },
-    { id: '소득', g: 'money', name: '월평균 소득', unit: '만원', d: 0, kind: 'seq', get: (c) => (P(c) && P(c).소득 != null ? P(c).소득 / 1e4 : null), ready: () => hasP('소득'), ref: () => median(allVals(LAYERS_BY.소득)), refName: '중간값',
-      desc: '가구 월평균 소득 추정 · 서울시 소득소비' },
+    { id: '소득', g: 'money', name: '소비 지출 밀도', unit: '억원/㎢', d: 1, kind: 'seq', get: (c, d) => (P(c) && P(c).지출 && d.면적_km2 ? P(c).지출 / d.면적_km2 / 1e8 : null), ready: () => hasP('지출'), ref: () => median(allVals(LAYERS_BY.소득)), refName: '중간값',
+      desc: '이 지역 안에서 쓰인 소비 지출(분기) ÷ 면적. 돈이 도는 정도 · 서울시 소득소비' },
     { id: '외식', g: 'money', name: '외식 지출 비중', unit: '%', d: 1, kind: 'seq', get: (c) => (P(c) && P(c).지출구성 && P(c).지출 ? (P(c).지출구성['음식'] || 0) / P(c).지출 * 100 : null), ready: () => hasP('지출구성'), ref: () => median(allVals(LAYERS_BY.외식)), refName: '중간값',
       desc: '지출 중 음식(외식) 비중 · 서울시 소득소비' },
     { id: '아파트', g: 'money', name: '아파트 평균 시가', unit: '억원', d: 1, kind: 'seq', get: (c) => (P(c) && P(c).아파트시가 ? P(c).아파트시가 / 1e8 : null), ready: () => hasP('아파트시가'), ref: () => median(allVals(LAYERS_BY.아파트)), refName: '중간값',
@@ -142,7 +142,7 @@
     const vals = Object.keys(D().지역).map(valueOf).filter((v) => v != null);
     if (L.kind === 'cat') {
       const seen = [...new Set(vals)];
-      const order = L.id === '유형' ? [...THEMES.map((t) => t[0]), '고른 생활'] : seen.sort();
+      const order = L.id === '유형' ? [...THEMES.map((t) => t[0]), '고른 생활'] : L.order || (L.id === '시간' ? Object.keys(T.인구.서울.유동시간) : L.id === '연령' ? Object.keys(T.인구.서울.유동연령) : seen.sort());
       const cats = order.filter((x) => seen.includes(x));
       return { kind: 'cat', cats, color: Object.fromEntries(cats.map((c, i) => [c, c === '고른 생활' ? '#c9cfcc' : CATCOL[i % CATCOL.length]])) };
     }
@@ -391,6 +391,19 @@
     if (upsN.length) B.push(`<b class="up">뜨는 업종</b>: ${upsN.map((x) => `${x.업종}(6개월 ${int(x.개업_최근6개월)}곳 개업, 서울 흐름대로면 ${fmt(x.개업_기대)}곳)`).join(', ')}`);
     if (upsL.length) B.push(`숙박·민박 개업도 크게 늘었는데, 관광 수요와 생활숙박시설 신고 정리가 함께 반영된 숫자입니다.`);
 
+    const pp = T.인구 && T.인구[state.level] && T.인구[state.level][code];
+    if (pp && pp.변화) B.push(`서울시 상권변화지표는 <b>${esc(pp.변화)}</b>입니다 — ${({ 다이나믹: '가게가 빨리 생기고 빨리 사라지는 활발한 단계', 상권확장: '오래 버티는 가게가 늘며 커지는 단계', 상권축소: '오래된 가게는 남고 새 가게가 버티지 못하는 단계', 정체: '가게 교체가 적고 오래된 가게 위주인 단계' })[pp.변화] || ''}.`);
+    const M = [];   // 돈
+    if (pp) {
+      const S2 = T.인구.서울;
+      const sAvg = S2.점포당매출;
+      if (pp.점포당매출 && sAvg) { const r = pp.점포당매출 / sAvg; M.push(`점포당 추정매출 월 ${fmt(pp.점포당매출 / 1e4, 0)}만원 — 서울의 ${fmt(r, 2)}배${r >= 1.2 ? '로 <b>장사가 되는 편</b>' : r <= 0.8 ? '로 매출이 낮은 편' : ''}.`); }
+      if (pp.매출저녁 != null && S2.매출저녁) { const r = pp.매출저녁 / S2.매출저녁; if (r >= 1.1) M.push(`매출의 ${fmt(pp.매출저녁 * 100, 0)}%가 저녁·밤에 나오는 <b>저녁 장사</b> 상권입니다(서울 ${fmt(S2.매출저녁 * 100, 0)}%).`); else if (r <= 0.85) M.push(`저녁·밤 매출 비중이 ${fmt(pp.매출저녁 * 100, 0)}%로 낮은 <b>낮 장사</b> 상권입니다.`); }
+      if (pp.매출주말 != null && S2.매출주말) { const r = pp.매출주말 / S2.매출주말; if (r >= 1.15) M.push(`주말 매출 비중이 ${fmt(pp.매출주말 * 100, 0)}%로 서울(${fmt(S2.매출주말 * 100, 0)}%)보다 높습니다.`); else if (r <= 0.85) M.push(`주말 매출 비중이 ${fmt(pp.매출주말 * 100, 0)}%로 평일 장사 위주입니다.`); }
+      const areaAll = Object.values(D().지역).reduce((a, x) => a + (x.면적_km2 || 0), 0);
+      if (pp.지출 && d.면적_km2 && S2.지출 && areaAll) { const r = (pp.지출 / d.면적_km2) / (S2.지출 / areaAll); if (r >= 1.3 || r <= 0.7) M.push(`이 지역 안에서 쓰이는 소비 지출이 ㎢당 서울 평균의 ${fmt(r, 1)}배로 ${r >= 1.3 ? '<b>돈이 많이 도는</b>' : '돈이 적게 도는'} 곳입니다.`); }
+      if (pp.아파트시가 && S2.아파트시가) { const r = pp.아파트시가 / S2.아파트시가; if (r >= 1.3 || r <= 0.7) M.push(`아파트 평균 시가 ${fmt(pp.아파트시가 / 1e8, 1)}억원 — 서울의 ${fmt(r, 1)}배.`); }
+    }
     const C = [];   // 위험·비용
     const ws = D().경보.filter((x) => x.행정동코드 === code).slice(0, 3);
     if (ws.length) C.push(`<b class="dn">폐업 경보</b>: ${ws.map((x) => `${x.업종}(폐업 ${int(x.폐업_12개월)}곳, 서울 폐업률대로면 ${fmt(x.폐업_기대)}곳)`).join(', ')}`);
@@ -413,7 +426,7 @@
       if (p >= 0.75) P.push(`학원·교습소 ${int(d.학원)}곳 — 가게 수에 비해 많은 <b>교육 수요</b> 지역입니다.`);
     }
 
-    return `<div class="btype">${tag}</div>${sec('업종 구성', A)}${sec('변화', B)}${sec('사람', P)}${sec('위험·비용', C)}`;
+    return `<div class="btype">${tag}</div>${sec('업종 구성', A)}${sec('변화', B)}${sec('사람', P)}${sec('돈', M)}${sec('위험·비용', C)}`;
   }
 
   // 업종을 고른 상태: 그 업종만의 한눈에
@@ -456,7 +469,8 @@
         : r <= rs * 0.6 ? `직장인구가 적은 <b>주거 지역</b>입니다(직장인구/상주인구 ${fmt(r, 2)}).` : `직장인구와 상주인구가 섞인 지역입니다.`);
     }
     if (p.유동 != null) {
-      const rr = rel('유동');
+      const nUnits = Object.keys(T.인구[state.level]).length || 1;
+      const rr = p.유동 / (S.유동 / nUnits);
       out.push(`하루 유동인구는 서울 ${UNIT()} 평균의 ${fmt(rr, 1)}배${rr >= 1.5 ? '로 <b>사람이 많이 오가는</b> 곳' : rr <= 0.6 ? '로 한산한 편' : ''}입니다.`);
       if (p.유동시간) {
         const tb = Object.entries(p.유동시간).map(([t, v]) => [t, v / Math.max(1, p.유동), S.유동시간[t] / Math.max(1, S.유동)]).sort((a, b) => b[1] / b[2] - a[1] / a[2])[0];
@@ -473,7 +487,7 @@
       }
       if (p.유동 && d_shop(p)) out.push(`유동인구 1만 명당 가게 ${fmt(d_shop(p), 1)}곳(서울 ${fmt(S.가게당유동 ? 1e4 / S.가게당유동 : null, 1)}곳) — ${d_shop(p) * S.가게당유동 / 1e4 >= 1.3 ? '수요에 비해 가게가 많아 경쟁이 센 편' : d_shop(p) * S.가게당유동 / 1e4 <= 0.75 ? '수요에 비해 가게가 적은 편' : '서울 평균 수준'}.`);
     }
-    if (p.소득 != null) {
+    if (false && p.소득 != null) {
       const r = rel('소득');
       out.push(`월평균 소득 ${fmt(p.소득 / 1e4, 0)}만원 — 서울 평균의 ${fmt(r, 2)}배${r >= 1.2 ? '로 <b>소득이 높은</b> 지역' : r <= 0.85 ? '로 소득이 낮은 편' : ''}.`);
     }
@@ -485,7 +499,7 @@
       const fs = Object.entries(p.집객).filter((x) => x[1] > 0).sort((a, b) => b[1] - a[1]).slice(0, 4);
       if (fs.length) out.push(`주변 집객시설: ${fs.map(([k, v]) => `${k} ${int(v)}`).join(', ')}.`);
     }
-    if (p.아파트세대) out.push(`아파트 ${int(p.아파트단지)}개 단지·${int(p.아파트세대)}세대${p.아파트시가 ? `, 평균 시가 ${fmt(p.아파트시가 / 1e8, 1)}억원` : ''}.`);
+    if (false && p.아파트세대) out.push(`아파트 ${int(p.아파트단지)}개 단지·${int(p.아파트세대)}세대${p.아파트시가 ? `, 평균 시가 ${fmt(p.아파트시가 / 1e8, 1)}억원` : ''}.`);
     return out;
   }
   function d_shop(p) { return p.가게 && p.유동 ? p.가게 / p.유동 * 1e4 : null; }

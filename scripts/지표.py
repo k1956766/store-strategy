@@ -45,6 +45,65 @@ def is_franchise(name):
     _FR[name] = hit
     return hit
 
+TLAB = {"00_06": "심야(0~6시)", "06_11": "아침(6~11시)", "11_14": "점심(11~14시)", "14_17": "오후(14~17시)", "17_21": "저녁(17~21시)", "21_24": "밤(21~24시)"}
+ALAB = {"10": "10대", "20": "20대", "30": "30대", "40": "40대", "50": "50대", "60": "60대 이상"}
+SPK = ["식료품", "의류", "생활용품", "의료", "교통", "교육", "유흥", "여가문화", "기타", "음식"]
+FCK = ["지하철역", "버스정류장", "대학", "초중고", "병원", "관공서", "은행", "백화점", "슈퍼마켓", "극장", "숙박시설"]
+
+def people(out_dong, g_dong):
+    """서울시 상권분석서비스 행정동 자료(analysis/{SIDO}/상권분석_행정동.csv)를 동·구·서울 단위 사람·돈 지표로."""
+    src = A / "상권분석_행정동.csv"
+    if not src.exists():
+        return None
+    rows = list(csv.DictReader(open(src, encoding="utf-8-sig")))
+    num = lambda r, k: float(r[k]) if r.get(k) not in (None, "") else 0.0
+    shops = {x["행정동코드"]: x["가게수"] for x in out_dong}
+    gshops = {x["행정동코드"]: x["가게수"] for x in g_dong}
+    acc = {"dong": defaultdict(lambda: defaultdict(float)), "gu": defaultdict(lambda: defaultdict(float)), "서울": defaultdict(float)}
+    chg = {"dong": {}, "gu": defaultdict(lambda: defaultdict(float))}
+    for r in rows:
+        c = r["행정동코드"]
+        vals = {k: num(r, k) for k in r if k not in ("행정동코드", "이름", "변화")}
+        vals["아파트시가x세대"] = vals.get("아파트시가", 0) * vals.get("아파트세대", 0)
+        for tgt in (acc["dong"][c], acc["gu"][c[:5]], acc["서울"]):
+            for k, v in vals.items():
+                tgt[k] += v
+        if r.get("변화"):
+            chg["dong"][c] = r["변화"]
+            chg["gu"][c[:5]][r["변화"]] += max(1.0, vals.get("매출점포", 0))
+
+    def pack(a, shop):
+        if not a:
+            return None
+        o = {"유동": a["유동"], "상주": a["상주"], "가구": a["가구"], "직장": a["직장"] or None, "지출": a["지출"] or None,
+             "유동시간": {TLAB[k]: a[f"유동_t{k}"] for k in TLAB}, "유동연령": {ALAB[k]: a[f"유동_a{k}"] for k in ALAB},
+             "상주연령": {ALAB[k]: a[f"상주_a{k}"] for k in ALAB}, "직장연령": {ALAB[k]: a[f"직장_a{k}"] for k in ALAB},
+             "유동주말": a["유동_주말"] / a["유동"] if a["유동"] else None,
+             "지출구성": {k: a[f"지출_{k}"] for k in SPK}, "집객": {k: a[f"집객_{k}"] for k in FCK}, "집객시설": a["집객시설"],
+             "아파트단지": a["아파트단지"], "아파트세대": a["아파트세대"],
+             "아파트시가": a["아파트시가x세대"] / a["아파트세대"] if a["아파트세대"] else None,
+             "매출": a["매출"], "점포당매출": a["매출"] / a["매출점포"] if a["매출점포"] >= 5 else None,
+             "매출주말": a["매출_주말"] / a["매출"] if a["매출"] else None, "매출저녁": a["매출_저녁"] / a["매출"] if a["매출"] else None,
+             "가게": shop}
+        return {k: (round(v, 4) if isinstance(v, float) else v) if not isinstance(v, dict) else {kk: round(vv, 1) for kk, vv in v.items()} for k, v in o.items()}
+
+    res = {"dong": {}, "gu": {}}
+    for c, a in acc["dong"].items():
+        o = pack(a, shops.get(c))
+        if o:
+            o["변화"] = chg["dong"].get(c)
+            res["dong"][c] = o
+    for c, a in acc["gu"].items():
+        o = pack(a, gshops.get(c))
+        if o:
+            m = chg["gu"].get(c)
+            o["변화"] = max(m, key=m.get) if m else None
+            res["gu"][c] = o
+    S = pack(acc["서울"], sum(shops.values()))
+    S["가게당유동"] = S["유동"] / S["가게"] if S["가게"] else None
+    res["서울"] = S
+    return res
+
 def months_back(m, n):
     y, mo = int(m[:4]), int(m[5:7])
     t = y * 12 + mo - 1 - n
@@ -328,6 +387,7 @@ def main():
                  "경보": sorted(g_close, key=lambda x: -x["폐업경보_z"])[:60],
                  "교체_빈발": sorted(g_dong, key=lambda x: -x["교체_z"])},
     }
+    summary["인구"] = people(out_dong, g_dong)
     for x in sorted(g_dg, key=lambda x: -x["가게수"]):
         summary["시군구"]["지역_업종"][x["행정동코드"]].append(
             [x["업종"], x["가게수"], x["개업_12개월"], x["폐업_12개월"], x["특화도_LQ"], x["뜨는신호_z"], x["폐업경보_z"], x["1년생존율"]])
