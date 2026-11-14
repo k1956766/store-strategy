@@ -32,6 +32,19 @@ SIDO = os.environ.get("HIST_SIDO", "서울")
 A = ROOT / "analysis" / SIDO
 K_SURV = 10
 
+_FR = {}
+def is_franchise(name):
+    """상호가 프랜차이즈 사전(직접 정리한 브랜드 + 공정위 가맹 브랜드)과 맞으면 True."""
+    if name in _FR:
+        return _FR[name]
+    import sys
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import 업종분류 as U
+    low = (name or "").lower().replace(" ", "")
+    hit = any(b.replace(" ", "") in low for b, _ in U.BRAND_INDEX) or bool(U.ftc_lookup(name or ""))
+    _FR[name] = hit
+    return hit
+
 def months_back(m, n):
     y, mo = int(m[:4]), int(m[5:7])
     t = y * 12 + mo - 1 - n
@@ -58,7 +71,7 @@ def bh(ps):
 def rate(num, den):
     return round(num / den * 100, 2) if den else None
 
-def compute(level, rows, E, allm, first, R12, R6, P6, BEFORE, nxt, dong_code_of):
+def compute(level, rows, E, allm, first, R12, R6, P6, BEFORE, nxt, dong_code_of, dong_area):
     """level='행정동'이면 그대로, '시군구'면 행정동을 구로 묶어서 같은 지표를 낸다."""
     def unit(code, name):
         if level == "행정동":
@@ -239,6 +252,23 @@ def compute(level, rows, E, allm, first, R12, R6, P6, BEFORE, nxt, dong_code_of)
             aca[u][0] += int(r["개원"]); aca[u][1] += int(r["최근12개월_신규"])
     for x in out_dong:
         x["학원"], x["학원_최근12개월_신규"] = aca[x["행정동코드"]] if ap.exists() else (None, None)
+    # 면적(㎢)·점포 밀도, 음식점 중 프랜차이즈 비중(지금 영업 중 가게 기준)
+    area = defaultdict(float)
+    for dc, a in dong_area.items():
+        area[unit(dc, "")[0]] += a
+    fr = defaultdict(lambda: [0, 0])
+    for r in csv.DictReader(gzip.open(A / "가게.csv.gz", "rt", encoding="utf-8")):
+        if r["제외"] or not r["행정동코드"] or r["CLSBIZ_YMD"] or r["자료"] not in ("휴게음식점", "일반음식점"):
+            continue
+        u = unit(r["행정동코드"], r["행정동"])[0]
+        fr[u][0] += 1
+        fr[u][1] += is_franchise(r["BPLC_NM"])
+    for x in out_dong:
+        a = area.get(x["행정동코드"])
+        x["면적_km2"] = round(a, 3) if a else None
+        x["점포밀도"] = round(x["가게수"] / a, 1) if a else None
+        n, f = fr[x["행정동코드"]]
+        x["프랜차이즈비중"] = round(f / n * 100, 1) if n >= 20 else None
 
     rising = [x for x in out_dg if x["뜨는신호_q"] < 0.1 and x["개업_최근6개월"] >= 3 and x["업종"] != "기타"]
     closing = [x for x in out_dg if x["폐업경보_q"] < 0.1 and x["폐업_12개월"] >= 5 and x["업종"] != "기타"]
@@ -257,7 +287,17 @@ def main():
     dong_code_of = {}
     for r in rows:
         dong_code_of[r["행정동"]] = r["행정동코드"]
-    args = (rows, E, allm, first, R12, R6, P6, BEFORE, nxt, dong_code_of)
+    # 행정동 면적(㎢): 경계를 중부원점(EPSG:5186)으로 바꿔 계산
+    dong_area = {}
+    bp = ROOT / "data" / "boundary" / f"행정동_{SIDO}.geojson"
+    if bp.exists():
+        from shapely.geometry import shape
+        from shapely.ops import transform  # noqa
+        from pyproj import Transformer
+        tf = Transformer.from_crs("EPSG:4326", "EPSG:5186", always_xy=True).transform
+        for f in json.loads(bp.read_text(encoding="utf-8"))["features"]:
+            dong_area[f["properties"]["adm_cd2"]] = transform(tf, shape(f["geometry"])).area / 1e6
+    args = (rows, E, allm, first, R12, R6, P6, BEFORE, nxt, dong_code_of, dong_area)
     out_cat, out_dong, out_dg, rising, closing, cty = compute("행정동", *args)
     _, g_dong, g_dg, g_rise, g_close, _ = compute("시군구", *args)
 

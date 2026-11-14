@@ -23,12 +23,9 @@
 
   <section class="field">
     <span class="fl" id="metric-label">지도 색</span>
-    <div class="seg seg4" role="radiogroup" aria-labelledby="metric-label" id="metric">
-      <button type="button" role="radio" aria-checked="true" data-m="회전율">교체</button>
-      <button type="button" role="radio" aria-checked="false" data-m="폐업률">폐업</button>
-      <button type="button" role="radio" aria-checked="false" data-m="개업률">개업</button>
-      <button type="button" role="radio" aria-checked="false" data-m="순증률">순증</button>
-    </div>
+    <div class="gtabs" role="tablist" aria-labelledby="metric-label" id="gtabs"></div>
+    <div class="lchips" id="lchips"></div>
+    <p class="ldesc" id="ldesc"></p>
     <label for="cat" class="sub">업종을 고르면 그 업종이 몰린 정도(특화도)로 칠합니다</label>
     <select id="cat"><option value="">업종 전체</option></select>
   </section>
