@@ -98,6 +98,43 @@
     return `<b>${esc(d.행정동)}</b><br>가게 ${int(d.가게수)}곳 · ${METRIC[state.metric].name.split('(')[0]} ${fmt(d[state.metric])}`;
   }
 
+  // ---------- 업종 표(머리글을 눌러 정렬) ----------
+  // 고르지 않은 칸 ▲▼, 고른 칸 내림차순 △▼(아래가 채워짐), 오름차순 ▲▽(위가 채워짐)
+  const COLS = [['업종', '업종'], ['가게', '가게'], ['개업', '개업'], ['폐업', '폐업'], ['lq', '특화도']];
+  state.sort = { key: 'lq', dir: 'desc' };
+  let detailRows = null;
+  function sortVal(r, k) { const v = r[k]; return v == null ? null : v; }
+  function renderTable() {
+    if (!detailRows) return;
+    const { code, rows, hi, lo } = detailRows;
+    const { key, dir } = state.sort;
+    const sorted = [...rows].sort((a, b) => {
+      const x = sortVal(a, key), y = sortVal(b, key);
+      if (x == null && y == null) return 0;
+      if (x == null) return 1;                       // 값 없는 칸은 늘 맨 아래
+      if (y == null) return -1;
+      const c = typeof x === 'string' ? x.localeCompare(y, 'ko') : x - y;
+      return dir === 'desc' ? -c : c;
+    });
+    const head = COLS.map(([k, label]) => {
+      const on = k === key;
+      const up = on && dir === 'desc' ? '△' : '▲', dn = on && dir === 'asc' ? '▽' : '▼';
+      const aria = on ? (dir === 'desc' ? '내림차순' : '오름차순') : '정렬 안 함';
+      return `<th aria-sort="${on ? (dir === 'desc' ? 'descending' : 'ascending') : 'none'}"><button type="button" class="sort${on ? ' on' : ''}" data-k="${k}" aria-label="${label} ${aria}"><span class="arr"><i>${up}</i><i>${dn}</i></span>${label}</button></th>`;
+    }).join('');
+    const body = sorted.map((r) => {
+      const tags = `${isRise(code, r.업종) ? '<span class="tag rise">뜸</span>' : ''}${isWarn(code, r.업종) ? '<span class="tag warn">경보</span>' : ''}${r.aca ? '<span class="tag src">나이스</span>' : ''}`;
+      const cls = hi.has(r.업종) ? 'lq hi' : lo.has(r.업종) ? 'lq lo' : 'lq';
+      return `<tr><td>${esc(r.업종)}${tags}</td><td>${int(r.가게)}</td><td>${int(r.개업)}</td><td>${r.폐업 == null ? '–' : int(r.폐업)}</td><td class="${cls}">${r.lq == null ? '–' : fmt(r.lq, 2)}</td></tr>`;
+    }).join('');
+    $('dtable').innerHTML = `<table class="t"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+    $('dtable').querySelectorAll('button.sort').forEach((bt) => bt.addEventListener('click', () => {
+      const k = bt.dataset.k;
+      state.sort = state.sort.key === k ? { key: k, dir: state.sort.dir === 'desc' ? 'asc' : 'desc' } : { key: k, dir: 'desc' };
+      renderTable();
+    }));
+  }
+
   // ---------- 동네 상세 ----------
   function openDong(code, zoom) {
     state.dong = code;
@@ -111,16 +148,11 @@
       const lq = acaAll ? (d.학원 / (d.가게수 + d.학원)) / (acaAll / (shopAll + acaAll)) : null;
       rows.push({ 업종: '학원·교습소', 가게: d.학원, 개업: d.학원_최근12개월_신규, 폐업: null, lq, aca: true });
     }
-    rows = rows.sort((a, b) => b.가게 - a.가게).slice(0, 24);
     // 특화도 상위 3개는 빨강, 하위 3개는 파랑(가게 5곳 이상, '기타' 제외)
     const ranked = rows.filter((r) => r.lq != null && r.가게 >= 5 && r.업종 !== '기타').sort((a, b) => b.lq - a.lq);
     const hi = new Set(ranked.slice(0, 3).map((r) => r.업종));
     const lo = new Set(ranked.length > 6 ? ranked.slice(-3).map((r) => r.업종) : []);
-    const tr = rows.map((r) => {
-      const tags = `${isRise(code, r.업종) ? '<span class="tag rise">뜸</span>' : ''}${isWarn(code, r.업종) ? '<span class="tag warn">경보</span>' : ''}${r.aca ? '<span class="tag src">나이스</span>' : ''}`;
-      const cls = hi.has(r.업종) ? 'lq hi' : lo.has(r.업종) ? 'lq lo' : 'lq';
-      return `<tr><td>${esc(r.업종)}${tags}</td><td>${int(r.가게)}</td><td>${int(r.개업)}</td><td>${r.폐업 == null ? '–' : int(r.폐업)}</td><td class="${cls}">${r.lq == null ? '–' : fmt(r.lq, 2)}</td></tr>`;
-    }).join('');
+    detailRows = { code, rows, hi, lo };
     $('detail').innerHTML = `<button class="close" type="button" id="close">닫기</button>
       <h2>${esc(d.행정동)}</h2><div class="sub">인허가 가게 ${int(d.가게수)}곳 · 최근 12개월</div>
       <div class="brief"><b>이 ${UNIT() === '구' ? '구' : '동네'} 한눈에</b>${describe(code, d)}</div>
@@ -133,8 +165,9 @@
         <div class="kpi"><b>${fmt(T.서울_전체.회전율, 0)}%</b><span>서울 평균 교체</span></div>
       </div>
       ${d.임대상권 ? `<p class="rent">소규모 상가 임대료 <b>${fmt(d.임대료_소규모)}천원/㎡</b>(월, 전년 대비 ${sign(d.임대료_전년비)}%) · 공실률 ${fmt(d.공실률_소규모)}%<br><span>한국부동산원 ${state.level === 'gu' ? `구 안 상권(${esc(d.임대상권)}) 평균` : `'${esc(d.임대상권)}' 상권 값을 가까운 동에 붙인 근사치`}, ${esc(String(d.임대분기).slice(0, 4))}년 ${esc(String(d.임대분기).slice(5))}분기</span></p>` : ''}
-      <table class="t"><thead><tr><th>업종</th><th>가게</th><th>개업</th><th>폐업</th><th>특화도</th></tr></thead><tbody>${tr}</tbody></table>
+      <div id="dtable"></div>
       <p class="tab-note">특화도: 그 업종 비중이 서울 평균의 몇 배인지. <span class="lq hi">빨강</span>은 이 지역에서 가장 몰린 3개, <span class="lq lo">파랑</span>은 가장 적은 3개. 학원·교습소는 나이스 자료라 개업은 최근 12개월 새로 연 곳, 폐업 기록은 없습니다.</p>`;
+    renderTable();
     $('detail').hidden = false;
     $('close').onclick = () => { state.dong = null; $('detail').hidden = true; paint(); };
     paint();
