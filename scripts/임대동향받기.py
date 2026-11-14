@@ -4,7 +4,7 @@
 저장: analysis/{SIDO}/임대동향_상권.csv  (분기, 상가유형, 지표, 상권, 값, 단위)
 환경변수: REB_KEY(필수), HIST_SIDO(기본 서울)
 """
-import csv, json, os, urllib.parse, urllib.request
+import csv, json, os, time, urllib.parse, urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -19,8 +19,16 @@ TABLES = {   # (상가유형, 지표): [통계표 ID ...]  — 2024년 3분기~,
 
 def get(tid, page):
     q = urllib.parse.urlencode({"KEY": KEY, "Type": "json", "pIndex": page, "pSize": 1000, "STATBL_ID": tid, "DTACYCLE_CD": "QY"})
-    with urllib.request.urlopen("https://www.reb.or.kr/r-one/openapi/SttsApiTblData.do?" + q, timeout=60) as f:
-        d = json.loads(f.read())
+    req = urllib.request.Request("https://www.reb.or.kr/r-one/openapi/SttsApiTblData.do?" + q, headers={"User-Agent": "Mozilla/5.0"})
+    for t in range(5):
+        try:
+            with urllib.request.urlopen(req, timeout=60) as f:
+                d = json.loads(f.read())
+            break
+        except Exception:
+            if t == 4:
+                raise
+            time.sleep(5 * (t + 1))
     if "SttsApiTblData" not in d:
         return 0, []
     head, body = d["SttsApiTblData"][0]["head"], d["SttsApiTblData"][1]["row"]

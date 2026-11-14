@@ -25,6 +25,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: 임대동향(R-ONE)
+        continue-on-error: true      # 해외 서버에서 끊길 때가 있어 실패해도 학원은 받는다
         env:
           REB_KEY: ${{ secrets.REB_KEY }}
           HIST_SIDO: ${{ inputs.sido }}
@@ -42,7 +43,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
-          git add analysis/${{ inputs.sido }}/임대동향_상권.csv analysis/${{ inputs.sido }}/학원.csv.gz analysis/${{ inputs.sido }}/학원_행정동.csv
+          for f in 임대동향_상권.csv 학원.csv.gz 학원_행정동.csv; do [ -f "analysis/${{ inputs.sido }}/$f" ] && git add "analysis/${{ inputs.sido }}/$f"; done
           if git diff --cached --quiet; then echo "변경 없음"; exit 0; fi
           git commit -m "보조 자료: ${{ inputs.sido }}"
           for i in 1 2 3; do git pull --rebase -q origin main && git push && break; sleep 10; done
