@@ -79,8 +79,9 @@
     B = bins();
     layer.setStyle((f) => {
       const sel = f.properties.c === state.dong;
-      return { fillColor: colorOf(valueOf(f.properties.c)), fillOpacity: 0.72, color: sel ? '#1F2B3D' : '#ffffff', weight: sel ? 2.5 : 0.8 };
+      return { fillColor: colorOf(valueOf(f.properties.c)), fillOpacity: 0.72, color: sel ? '#FFD400' : '#111111', opacity: sel ? 1 : 0.75, weight: sel ? 3 : (state.level === 'gu' ? 0.9 : 0.6) };
     });
+    if (state.dong) layer.eachLayer((l) => { if (l.feature.properties.c === state.dong) l.bringToFront(); });
     const title = state.cat ? `${esc(state.cat)} 특화도(서울 평균=1)` : METRIC[state.metric].name;
     $('legend').innerHTML = `<div class="lt">${title}</div><div class="bins">${B.colors.map((c) => `<i style="background:${c}"></i>`).join('')}</div>
       <div class="lab">${B.labels.map((l) => `<span>${l}</span>`).join('')}</div>
