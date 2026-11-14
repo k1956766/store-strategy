@@ -7,7 +7,7 @@
 두 묶음을 합치면 START 이후 개업한 가게와, START 이후 어느 날짜의 영업 중 가게를 모두 복원할 수 있다.
 
 저장: history/{지자체코드}/{자료}_{영업|폐업}.csv.gz  (이미 있으면 건너뜀 → 끊겨도 다음 실행이 이어 받음)
-환경변수: DATA_GO_KR_KEY(필수), HIST_SIDO(기본 서울), HIST_START(기본 2025-01-01), HIST_BUDGET_MIN(기본 300)
+환경변수: DATA_GO_KR_KEY(필수), HIST_GROUP(음식|확장|전체, 기본 음식), HIST_SIDO(기본 서울), HIST_START(기본 2025-01-01), HIST_BUDGET_MIN(기본 300)
 """
 import csv, gzip, json, os, sys, time, urllib.parse, urllib.request
 from concurrent.futures import ThreadPoolExecutor
@@ -19,8 +19,28 @@ SIDO = os.environ.get("HIST_SIDO", "서울")
 START = os.environ.get("HIST_START", "2025-01-01")
 BUDGET = float(os.environ.get("HIST_BUDGET_MIN", 300))
 WORKERS = 8
-DATASETS = {"휴게음식점": "rest_cafes", "일반음식점": "general_restaurants"}
-FIELDS = ["MNG_NO", "BPLC_NM", "BZSTAT_SE_NM", "LCPMT_YMD", "SALS_STTS_NM", "DTL_SALS_STTS_NM", "CLSBIZ_YMD",
+FOOD = {"휴게음식점": "rest_cafes", "일반음식점": "general_restaurants"}
+# 확장 업종(행정안전부 인허가 조회서비스). 이름에 밑줄(_)을 쓰지 않는다(파일 이름 구분자).
+# 통신판매업은 매장이 아니고(대부분 사무실·자택 주소) 건수가 너무 많아 뺀다.
+EXTRA = {
+    "제과점영업": "bakeries", "즉석판매제조가공업": "instant_food_processors", "축산판매업": "livestock_retail",
+    "식품판매업(기타)": "other_food_retailers", "건강기능식품일반판매업": "health_functional_food_general_retailers",
+    "단란주점영업": "singing_bars", "유흥주점영업": "entertainment_bars", "관광식당": "tourist_restaurants",
+    "담배소매업": "tobacco_retailers", "안전상비의약품판매업소": "over_the_counter_medicine_stores",
+    "약국": "pharmacies", "의원": "clinics", "병원": "hospitals", "안경업": "optical_shops",
+    "의료기기판매(임대)업": "medical_device_sales_rental", "산후조리업": "postpartum_care",
+    "미용업": "beauty_salons", "이용업": "barber_shops", "세탁업": "laundries", "목욕장업": "public_baths",
+    "체력단련장업": "fitness_centers", "체육도장업": "martial_arts_dojo", "골프연습장업": "golf_practice_ranges",
+    "수영장업": "swimming_pools", "종합체육시설업": "comprehensive_sports_facilities",
+    "노래연습장업": "karaoke_rooms", "인터넷컴퓨터게임시설제공업": "pc_bangs",
+    "청소년게임제공업": "youth_game_providers", "일반게임제공업": "general_game_providers",
+    "숙박업": "lodgings", "외국인관광도시민박업": "foreigner_city_homestays", "관광숙박업": "tourist_accommodations",
+    "동물병원": "animal_hospitals", "동물미용업": "pet_grooming", "동물위탁관리업": "animal_boarding",
+    "동물판매업": "animal_sales", "동물약국": "animal_pharmacies", "대규모점포": "large_scale_retail_stores",
+}
+GROUPS = {"음식": FOOD, "확장": EXTRA, "전체": {**FOOD, **EXTRA}}
+DATASETS = GROUPS[os.environ.get("HIST_GROUP", "음식")]
+FIELDS = ["MNG_NO", "BPLC_NM", "BZSTAT_SE_NM", "SNTTN_BZSTAT_NM", "MDEXM_SBJCT_CN_NM", "LCTN_AREA", "LCPMT_YMD", "SALS_STTS_NM", "DTL_SALS_STTS_NM", "CLSBIZ_YMD",
           "ROAD_NM_ADDR", "LOTNO_ADDR", "CRD_INFO_X", "CRD_INFO_Y", "FCLT_TOTAL_SCL", "OPN_ATMY_GRP_CD",
           "LAST_MDFCN_PNT", "DAT_UPDT_PNT"]
 T0 = time.time()

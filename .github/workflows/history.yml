@@ -11,6 +11,9 @@ on:
       start:
         description: "폐업 기준일(YYYY-MM-DD)"
         default: "2025-01-01"
+      group:
+        description: "업종 묶음(음식, 확장, 전체)"
+        default: "음식"
 
 permissions:
   contents: write
@@ -33,12 +36,14 @@ jobs:
           DATA_GO_KR_KEY: ${{ secrets.DATA_GO_KR_KEY }}
           HIST_SIDO: ${{ inputs.sido }}
           HIST_START: ${{ inputs.start }}
+          HIST_GROUP: ${{ inputs.group }}
           HIST_BUDGET_MIN: "290"
         run: python -u scripts/이력받기.py
       - name: 집계(이력을 다 받았을 때만)
         env:
           HIST_SIDO: ${{ inputs.sido }}
           HIST_START: ${{ inputs.start }}
+          HIST_GROUP: 전체
           KAKAO_REST_KEY: ${{ secrets.KAKAO_REST_KEY }}
         run: |
           pip install -q pyproj shapely
@@ -50,5 +55,5 @@ jobs:
           git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
           git add history analysis data/좌표_캐시.json
           if git diff --cached --quiet; then echo "새 이력 없음"; exit 0; fi
-          git commit -m "분석용 이력: ${{ inputs.sido }} (폐업 ${{ inputs.start }} 이후)"
+          git commit -m "분석용 이력: ${{ inputs.sido }} ${{ inputs.group }} (폐업 ${{ inputs.start }} 이후)"
           for i in 1 2 3; do git pull --rebase -q origin main && git push && break; sleep 10; done
